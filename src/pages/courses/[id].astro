@@ -580,6 +580,7 @@ const courseModules = sortedCourseModules || [];
         display: flex;
         align-items: center;
         gap: 1.5rem;
+        flex-wrap: wrap;
     }
 
     .price {
@@ -595,9 +596,37 @@ const courseModules = sortedCourseModules || [];
         align-items: start;
     }
 
-    @media (max-width: 768px) {
+    @media (max-width: 1024px) {
         .content {
             grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .course-header {
+            padding: 1.5rem;
+        }
+        .course-header h1 {
+            font-size: 1.75rem;
+        }
+        .meta {
+            gap: 1rem;
+        }
+        .price {
+            font-size: 1.25rem;
+            width: 100%;
+        }
+        #enroll-btn {
+            width: 100%;
+        }
+        .mod-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+        .mod-status {
+            width: 100%;
+            justify-content: space-between;
         }
     }
 

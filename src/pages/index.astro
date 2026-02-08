@@ -99,7 +99,7 @@ if (error) {
 	/* Existing styles... */
 	.hero {
 		text-align: center;
-		padding: 4rem 0;
+		padding: 4rem 2rem;
 		background: linear-gradient(135deg, #4f46e5 0%, #818cf8 100%);
 		border-radius: 1rem;
 		color: white;
@@ -109,17 +109,30 @@ if (error) {
 	.hero h1 {
 		font-size: 3rem;
 		margin-bottom: 1rem;
+		line-height: 1.2;
 	}
 
 	.hero p {
 		font-size: 1.25rem;
 		opacity: 0.9;
+		max-width: 600px;
+		margin: 0 auto;
 	}
 
-	.course-grid {
-		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-		gap: 2rem;
+	@media (max-width: 768px) {
+		.hero {
+			padding: 3rem 1.5rem;
+		}
+		.hero h1 {
+			font-size: 2rem;
+		}
+		.hero p {
+			font-size: 1rem;
+		}
+
+		.course-grid {
+			grid-template-columns: 1fr;
+		}
 	}
 
 	.course-card {

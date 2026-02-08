@@ -156,11 +156,20 @@ import Layout from "../../layouts/Layout.astro";
 
 <style>
     /* Reuse admin-container, sidebar, main styles */
+    /* Reuse admin-container, sidebar, main styles */
     .admin-container {
         display: flex;
         min-height: calc(100vh - 150px);
         margin: -2rem;
     }
+
+    @media (max-width: 1024px) {
+        .admin-container {
+            flex-direction: column;
+            margin: 0;
+        }
+    }
+
     .admin-sidebar {
         width: 240px;
         background: #1e293b;
@@ -168,6 +177,28 @@ import Layout from "../../layouts/Layout.astro";
         display: flex;
         flex-direction: column;
     }
+
+    @media (max-width: 1024px) {
+        .admin-sidebar {
+            width: 100%;
+        }
+        .admin-sidebar .brand {
+            padding: 1rem;
+        }
+        .admin-sidebar nav {
+            display: flex;
+            flex-wrap: wrap;
+            padding: 0.5rem;
+        }
+        .admin-sidebar nav a {
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+        }
+        .btn-create-sidebar {
+            margin: 0.5rem;
+        }
+    }
+
     .admin-sidebar .brand {
         padding: 2rem;
         font-size: 1.25rem;
@@ -226,6 +257,22 @@ import Layout from "../../layouts/Layout.astro";
         flex: 1;
         padding: 2rem 3rem;
         background: #f8fafc;
+        overflow-x: hidden;
+    }
+
+    @media (max-width: 768px) {
+        .admin-main {
+            padding: 1.5rem;
+        }
+        .admin-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+        .admin-header .btn {
+            width: 100%;
+            text-align: center;
+        }
     }
 
     .table-card {
@@ -233,12 +280,13 @@ import Layout from "../../layouts/Layout.astro";
         border-radius: 0.75rem;
         box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
         border: 1px solid var(--border-color);
-        overflow: hidden;
+        overflow-x: auto;
     }
     table {
         width: 100%;
         border-collapse: collapse;
         text-align: left;
+        min-width: 600px;
     }
     th {
         background: #f1f5f9;
@@ -271,6 +319,7 @@ import Layout from "../../layouts/Layout.astro";
     .actions {
         display: flex;
         gap: 0.5rem;
+        flex-wrap: wrap;
     }
     .btn-builder {
         background: var(--primary-color);

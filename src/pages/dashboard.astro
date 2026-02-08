@@ -192,6 +192,15 @@ import Layout from "../layouts/Layout.astro";
         margin-bottom: 2.5rem;
         padding-bottom: 1.5rem;
         border-bottom: 1px solid var(--border-color);
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    @media (max-width: 640px) {
+        .header {
+            flex-direction: column;
+            align-items: flex-start;
+        }
     }
 
     .welcome h1 {
@@ -207,6 +216,17 @@ import Layout from "../layouts/Layout.astro";
     .header-actions {
         display: flex;
         gap: 1rem;
+        width: 100%;
+        max-width: 400px;
+    }
+
+    @media (max-width: 640px) {
+        .header-actions {
+            max-width: none;
+        }
+        .header-actions .btn {
+            flex: 1;
+        }
     }
 
     .danger:hover {
@@ -280,6 +300,17 @@ import Layout from "../layouts/Layout.astro";
         display: flex;
         justify-content: space-between;
         align-items: center;
+        gap: 1rem;
+    }
+
+    @media (max-width: 640px) {
+        .course-card-compact {
+            flex-direction: column;
+            align-items: flex-start;
+        }
+        .course-card-compact .btn {
+            width: 100%;
+        }
     }
 
     .course-card-compact h4 {
