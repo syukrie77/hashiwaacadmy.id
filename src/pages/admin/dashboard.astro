@@ -1,0 +1,333 @@
+---
+import Layout from "../../layouts/Layout.astro";
+---
+
+<Layout>
+    <div class="admin-container">
+        <aside class="admin-sidebar" id="admin-nav">
+            <div class="brand">Admin Panel</div>
+            <nav>
+                <a href="/admin/dashboard" class="active">Overview</a>
+                <a href="/admin/users">Users</a>
+                <a href="/admin/classes">Course Management</a>
+                <div class="nav-divider"></div>
+                <a href="/admin/courses/new" class="btn-create-sidebar"
+                    >+ New Course</a
+                >
+            </nav>
+            <div class="footer">
+                <a href="/dashboard">Return to Student Dash</a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <div class="admin-header">
+                <h1>Platform Overview</h1>
+                <div id="admin-user-info" class="user-info">Loading...</div>
+            </div>
+
+            <div id="loading" class="state-message">Loading statistics...</div>
+
+            <div id="admin-content" class="hidden">
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <span class="label">Total Users</span>
+                        <span id="count-users" class="value">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="label">Total Courses</span>
+                        <span id="count-classes" class="value">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="label">Total Enrollments</span>
+                        <span id="count-enrollments" class="value">0</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="label">Total Revenue</span>
+                        <span id="total-revenue" class="value">Rp 0</span>
+                    </div>
+                </div>
+
+                <div class="quick-actions">
+                    <h2>Quick Actions</h2>
+                    <div class="action-buttons">
+                        <a href="/admin/courses/new" class="action-btn">
+                            <span class="icon">➕</span>
+                            <div class="text">
+                                <strong>Create New Course</strong>
+                                <p>Start building a new learning path</p>
+                            </div>
+                        </a>
+                        <a href="/admin/users" class="action-btn">
+                            <span class="icon">👥</span>
+                            <div class="text">
+                                <strong>Manage Users</strong>
+                                <p>Review student and instructor accounts</p>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="recent-actions">
+                    <h2>System Status</h2>
+                    <p>All services operational.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+</Layout>
+
+<script>
+    import { supabase } from "../../lib/supabase";
+
+    const userStr = localStorage.getItem("user");
+    const loadingEl = document.getElementById("loading");
+    const contentEl = document.getElementById("admin-content");
+    const userInfoEl = document.getElementById("admin-user-info");
+
+    // Security Check
+    console.log("Checking admin access...");
+    if (!userStr) {
+        console.log("No user found in localStorage, redirecting to login");
+        window.location.href = "/login";
+    } else {
+        const user = JSON.parse(userStr);
+        console.log("User role:", user.role);
+        if (user.role !== "admin") {
+            console.log(
+                "Access denied, role is not admin. Redirecting to student dashboard.",
+            );
+            alert("Access Denied: Admin only. Your role: " + user.role);
+            window.location.href = "/dashboard";
+        } else {
+            console.log("Admin access granted");
+            userInfoEl!.textContent = `Logged in as: ${user.name}`;
+            loadStats();
+        }
+    }
+
+    async function loadStats() {
+        try {
+            const [
+                { count: userCount },
+                { count: classCount },
+                { count: enrollCount },
+                { data: payments },
+            ] = await Promise.all([
+                supabase
+                    .from("users")
+                    .select("*", { count: "exact", head: true }),
+                supabase
+                    .from("classes")
+                    .select("*", { count: "exact", head: true }),
+                supabase
+                    .from("enrollments")
+                    .select("*", { count: "exact", head: true }),
+                supabase
+                    .from("payments")
+                    .select("amount")
+                    .eq("status", "completed"),
+            ]);
+
+            const revenue =
+                (payments as { amount: number }[] | null)?.reduce(
+                    (sum, p) => sum + (p.amount || 0),
+                    0,
+                ) || 0;
+
+            document.getElementById("count-users")!.textContent =
+                userCount?.toString() || "0";
+            document.getElementById("count-classes")!.textContent =
+                classCount?.toString() || "0";
+            document.getElementById("count-enrollments")!.textContent =
+                enrollCount?.toString() || "0";
+            document.getElementById("total-revenue")!.textContent =
+                `Rp ${revenue.toLocaleString("id-ID")}`;
+
+            loadingEl!.style.display = "none";
+            contentEl!.classList.remove("hidden");
+        } catch (err: any) {
+            console.error("Dashboard Stats Error:", err);
+            loadingEl!.textContent =
+                "Error loading admin data: " + (err.message || "Unknown error");
+        }
+    }
+</script>
+
+<style>
+    .admin-container {
+        display: flex;
+        min-height: calc(100vh - 150px);
+        margin: -2rem;
+    }
+
+    .admin-sidebar {
+        width: 240px;
+        background: #1e293b;
+        color: white;
+        display: flex;
+        flex-direction: column;
+    }
+
+    .admin-sidebar .brand {
+        padding: 2rem;
+        font-size: 1.25rem;
+        font-weight: 800;
+        border-bottom: 1px solid #334155;
+    }
+
+    .admin-sidebar nav {
+        flex: 1;
+        padding: 1rem 0;
+    }
+
+    .admin-sidebar nav a {
+        display: block;
+        padding: 1rem 2rem;
+        color: #94a3b8;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .admin-sidebar nav a:hover,
+    .admin-sidebar nav a.active {
+        background: #334155;
+        color: white;
+    }
+
+    .nav-divider {
+        height: 1px;
+        background: #334155;
+        margin: 1rem 1.5rem;
+    }
+
+    .btn-create-sidebar {
+        display: block;
+        margin: 0.5rem 1.5rem;
+        padding: 0.75rem;
+        background: var(--primary-color);
+        color: white;
+        text-align: center;
+        text-decoration: none;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+        transition: background 0.2s;
+    }
+
+    .btn-create-sidebar:hover {
+        background: var(--primary-hover);
+    }
+
+    .admin-sidebar .footer {
+        padding: 1rem;
+        border-top: 1px solid #334155;
+    }
+
+    .admin-sidebar .footer a {
+        color: #94a3b8;
+        font-size: 0.8rem;
+        text-decoration: none;
+    }
+
+    .admin-main {
+        flex: 1;
+        padding: 2rem 3rem;
+        background: #f8fafc;
+    }
+
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 3rem;
+    }
+
+    .user-info {
+        font-size: 0.9rem;
+        color: #64748b;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 2rem;
+        margin-bottom: 3rem;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 0.75rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border-color);
+    }
+
+    .stat-card .label {
+        display: block;
+        color: #64748b;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-card .value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    .hidden {
+        display: none;
+    }
+    .state-message {
+        padding: 4rem;
+        text-align: center;
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+        margin-bottom: 3rem;
+    }
+    .action-buttons {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1rem;
+    }
+    .action-btn {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        background: white;
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s;
+    }
+    .action-btn:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+    .action-btn .icon {
+        font-size: 1.5rem;
+        background: #f1f5f9;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.5rem;
+    }
+    .action-btn .text strong {
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+    .action-btn .text p {
+        margin: 0;
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+</style>

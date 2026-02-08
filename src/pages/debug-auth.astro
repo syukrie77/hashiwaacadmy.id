@@ -1,0 +1,49 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout>
+    <div
+        style="padding: 2rem; background: white; border-radius: 8px; border: 1px solid #ddd;"
+    >
+        <h1>Auth Debugger</h1>
+        <p>
+            This page shows your current session data as stored in your browser.
+        </p>
+
+        <div
+            id="debug-info"
+            style="background: #f4f4f4; padding: 1rem; border-radius: 4px; font-family: monospace; white-space: pre-wrap; margin-top: 1rem;"
+        >
+            Loading...
+        </div>
+
+        <div style="margin-top: 2rem; display: flex; gap: 1rem;">
+            <button
+                onclick="localStorage.clear(); window.location.reload();"
+                class="btn btn-outline"
+                style="border-color: red; color: red;"
+                >Clear Session (Logout Everywhere)</button
+            >
+            <a href="/login" class="btn btn-primary">Go to Login Page</a>
+        </div>
+    </div>
+</Layout>
+
+<script>
+    const userStr = localStorage.getItem("user");
+    const debugEl = document.getElementById("debug-info");
+
+    if (userStr) {
+        try {
+            const user = JSON.parse(userStr);
+            debugEl!.textContent = JSON.stringify(user, null, 2);
+        } catch (e) {
+            debugEl!.textContent =
+                "Error parsing localStorage 'user': " + e.message;
+        }
+    } else {
+        debugEl!.textContent =
+            "No 'user' found in localStorage. You are currently logged out.";
+    }
+</script>

@@ -1,0 +1,480 @@
+---
+import Layout from "../../../../layouts/Layout.astro";
+import { supabase } from "../../../../lib/supabase";
+
+const { courseId, materialId } = Astro.params;
+export const prerender = false;
+
+if (!courseId || !materialId) {
+  return Astro.redirect("/404");
+}
+
+const { data: material, error: matError }: any = await supabase
+  .from("materials")
+  .select(
+    `
+    *,
+    modules (
+      title,
+      class_id,
+      classes (title)
+    )
+  `,
+  )
+  .eq("id", materialId)
+  .single();
+
+if (matError || !material) {
+  console.error("Error fetching material:", matError);
+  return Astro.redirect("/404");
+}
+
+// Fetch all modules and materials for sidebar
+const { data: modules, error: modulesError }: any = await supabase
+  .from("modules")
+  .select(
+    `
+    id,
+    title,
+    order_no,
+    materials (id, title, type, duration, order_no)
+  `,
+  )
+  .eq("class_id", courseId)
+  .order("order_no");
+
+// Sort materials within modules by order_no
+const sortedModules = (modules || []).map((mod: any) => ({
+  ...mod,
+  materials: (mod.materials || []).sort(
+    (a: any, b: any) => (a.order_no || 0) - (b.order_no || 0),
+  ),
+}));
+---
+
+<Layout>
+  <div class="learn-container">
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href={`/courses/${courseId}`} class="back-link">← Back to Course</a>
+        <h3>{material.modules.classes.title}</h3>
+      </div>
+      <nav class="course-outline">
+        {
+          sortedModules?.map((mod: any) => (
+            <div class="module-group">
+              <h4 class="module-title">{mod.title}</h4>
+              <ul class="material-links">
+                {mod.materials.map((mat: any) => (
+                  <li
+                    class={`${mat.id === materialId ? "active" : ""} ${mat.type}`}
+                    data-id={mat.id}
+                  >
+                    <a href={`/courses/${courseId}/learn/${mat.id}`}>
+                      <span class="icon">
+                        {mat.type === "video"
+                          ? "📺"
+                          : mat.type === "pdf"
+                            ? "📄"
+                            : "📝"}
+                      </span>
+                      <span class="title">{mat.title}</span>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        }
+      </nav>
+    </aside>
+
+    <main class="content-viewer">
+      <div id="secure-content" class="hidden" style="display: none;">
+        <div class="viewer-header">
+          <h2>{material.title}</h2>
+          <div class="meta">
+            <span class="badge">{material.type}</span>
+            {material.duration && <span>{material.duration} minutes</span>}
+          </div>
+        </div>
+
+        <div class="viewer-body">
+          {
+            material.type === "video" ? (
+              <div class="video-container">
+                {material.content.includes("youtube.com") ||
+                material.content.includes("youtu.be") ? (
+                  <iframe
+                    src={material.content.replace("watch?v=", "embed/")}
+                    frameborder="0"
+                    allowfullscreen
+                  />
+                ) : (
+                  <video src={material.content} controls class="main-video" />
+                )}
+                <div class="actions">
+                  <button class="btn btn-primary" id="mark-complete">
+                    Mark as Completed
+                  </button>
+                </div>
+              </div>
+            ) : material.type === "pdf" ? (
+              <div class="pdf-container">
+                <object
+                  data={material.content}
+                  type="application/pdf"
+                  width="100%"
+                  height="800px"
+                >
+                  <p>
+                    Your browser does not support PDFs.{" "}
+                    <a href={material.content}>Download PDF</a>
+                  </p>
+                </object>
+                <div class="actions">
+                  <button class="btn btn-primary" id="mark-complete">
+                    Mark as Completed
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div class="text-content">
+                {material.content}
+                <div class="actions">
+                  <button class="btn btn-primary" id="mark-complete">
+                    Mark as Completed
+                  </button>
+                </div>
+              </div>
+            )
+          }
+        </div>
+
+        <div class="viewer-footer">
+          <!-- Navigation between lessons could be added here -->
+        </div>
+      </div>
+      <!-- End secure-content -->
+    </main>
+  </div>
+</Layout>
+
+<script>
+  import { supabase } from "../../../../lib/supabase";
+
+  async function init() {
+    const userStr = localStorage.getItem("user");
+    if (!userStr) {
+      window.location.href = "/login";
+      return;
+    }
+    const user = JSON.parse(userStr);
+    const courseId = (document.getElementById("data-bridge") as HTMLElement)
+      .dataset.courseId;
+    const materialId = (document.getElementById("data-bridge") as HTMLElement)
+      .dataset.materialId;
+
+    // 1. Check Enrollment
+    const { data: enrollment } = await supabase
+      .from("enrollments")
+      .select("id")
+      .eq("user_id", user.id)
+      .eq("class_id", courseId)
+      .single();
+
+    if (!enrollment) {
+      alert("You must enroll in this course to access the materials.");
+      window.location.href = `/courses/${courseId}`;
+      return;
+    }
+
+    // 2. Fetch Progress and Lock/Unlock materials
+    const { data: progress } = await supabase
+      .from("progress")
+      .select("material_id, completed")
+      .eq("user_id", user.id)
+      .eq("completed", true);
+
+    const completedIds = new Set(progress?.map((p) => p.material_id) || []);
+    const materialLinks = Array.from(
+      document.querySelectorAll(".material-links li"),
+    );
+
+    // Check Access for CURRENT material
+    const currentIndex = materialLinks.findIndex(
+      (li: any) => li.dataset.id === materialId,
+    );
+    let canAccess = true;
+
+    // Check if all previous materials are completed
+    for (let i = 0; i < currentIndex; i++) {
+      const mid = (materialLinks[i] as HTMLElement).dataset.id!;
+      if (!completedIds.has(mid)) {
+        canAccess = false;
+        break;
+      }
+    }
+
+    if (!canAccess) {
+      alert("🔒 Content Locked: You must complete previous materials first.");
+      window.location.href = `/courses/${courseId}`;
+      return;
+    }
+
+    // Reveal Content
+    const secureContent = document.getElementById("secure-content");
+    if (secureContent) {
+      secureContent.classList.remove("hidden");
+      secureContent.style.display = "block";
+    }
+
+    // Sidebar Locking Visuals
+    let firstIncompleteFound = false;
+    materialLinks.forEach((li: any) => {
+      const mid = li.dataset.id;
+      const isCompleted = completedIds.has(mid);
+
+      if (isCompleted) {
+        li.classList.add("completed");
+      } else {
+        if (!firstIncompleteFound) {
+          // Unlocked (this is the current next step)
+          firstIncompleteFound = true;
+        } else {
+          // Locked
+          li.classList.add("locked");
+          li.querySelector("a").onclick = (e: Event) => {
+            e.preventDefault();
+            alert("Please complete previous materials first.");
+          };
+        }
+      }
+    });
+
+    // 3. Mark Complete Logic
+    const markBtn = document.getElementById("mark-complete");
+    if (completedIds.has(materialId)) {
+      if (markBtn) {
+        markBtn.textContent = "Completed ✓";
+        (markBtn as HTMLButtonElement).disabled = true;
+      }
+    }
+
+    markBtn?.addEventListener("click", async () => {
+      const { error } = await supabase.from("progress").upsert(
+        {
+          user_id: user.id,
+          material_id: materialId,
+          completed: true,
+          completed_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,material_id" },
+      );
+
+      if (error) {
+        console.error(error);
+        alert("Error updating progress");
+      } else {
+        // alert("Content marked as completed!");
+        // Iterate to next lesson?
+        window.location.reload();
+      }
+    });
+  }
+
+  init();
+  document.addEventListener("astro:after-swap", init);
+</script>
+
+<div
+  id="data-bridge"
+  class="hidden"
+  data-course-id={courseId}
+  data-material-id={materialId}
+>
+</div>
+
+<style>
+  .learn-container {
+    display: flex;
+    height: calc(100vh - 100px);
+    margin: -2rem; /* Pull back the Layout's margin */
+  }
+
+  .sidebar {
+    width: 300px;
+    background: white;
+    border-right: 1px solid var(--border-color);
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sidebar-header {
+    padding: 1.5rem;
+    border-bottom: 1px solid var(--border-color);
+  }
+
+  .back-link {
+    display: block;
+    font-size: 0.875rem;
+    color: #6b7280;
+    text-decoration: none;
+    margin-bottom: 0.5rem;
+  }
+
+  .sidebar-header h3 {
+    margin: 0;
+    font-size: 1.1rem;
+  }
+
+  .course-outline {
+    padding: 1rem 0;
+  }
+
+  .module-group {
+    margin-bottom: 1.5rem;
+  }
+
+  .module-title {
+    padding: 0 1.5rem;
+    font-size: 0.8rem;
+    text-transform: uppercase;
+    color: #9ca3af;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.5rem;
+  }
+
+  .material-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+
+  .material-links li a {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1.5rem;
+    text-decoration: none;
+    color: var(--text-color);
+    font-size: 0.9rem;
+    transition: background 0.2s;
+  }
+
+  .material-links li:hover a {
+    background: #f3f4f6;
+  }
+
+  .material-links li.active a {
+    background: #eef2ff;
+    color: var(--primary-color);
+    font-weight: 600;
+    border-right: 3px solid var(--primary-color);
+  }
+
+  .material-links li.completed .icon {
+    color: #10b981;
+  }
+
+  .material-links li.locked {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .material-links li.locked a {
+    pointer-events: none;
+  }
+
+  .material-links li.locked .icon::after {
+    content: "🔒";
+    font-size: 0.7rem;
+    margin-left: 2px;
+  }
+
+  .video-container iframe,
+  .main-video {
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border-radius: 0.75rem;
+    background: black;
+  }
+
+  .pdf-container object {
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
+  }
+
+  .content-viewer {
+    flex: 1;
+    background: #f9fafb;
+    padding: 2rem 3rem;
+    overflow-y: auto;
+  }
+
+  .viewer-header {
+    margin-bottom: 2rem;
+  }
+
+  .viewer-header h2 {
+    margin: 0 0 0.5rem 0;
+  }
+
+  .meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    color: #6b7280;
+    font-size: 0.875rem;
+  }
+
+  .badge {
+    background: #e5e7eb;
+    padding: 0.1rem 0.5rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    font-size: 0.7rem;
+    font-weight: 700;
+  }
+
+  .video-placeholder {
+    background: #000;
+    border-radius: 0.75rem;
+    overflow: hidden;
+  }
+
+  .aspect-ratio {
+    padding-top: 56.25%; /* 16:9 */
+    position: relative;
+  }
+
+  .placeholder-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    color: white;
+  }
+
+  .text-content {
+    background: white;
+    padding: 2rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
+    line-height: 1.7;
+    white-space: pre-wrap;
+  }
+
+  .actions {
+    margin-top: 2rem;
+    border-top: 1px solid var(--border-color);
+    padding-top: 1.5rem;
+    text-align: right;
+  }
+</style>

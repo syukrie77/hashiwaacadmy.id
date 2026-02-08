@@ -1,0 +1,268 @@
+---
+import Layout from "../../../../layouts/Layout.astro";
+import { supabase } from "../../../../lib/supabase";
+
+const { courseId, id } = Astro.params;
+export const prerender = false;
+
+if (!courseId || !id) {
+    return Astro.redirect("/404");
+}
+
+// Fetch exam details and questions
+const { data: exam, error: examError } = await supabase
+    .from("exams")
+    .select(
+        `
+    *,
+    questions (*)
+  `,
+    )
+    .eq("id", id)
+    .single();
+
+if (examError || !exam) {
+    console.error("Error fetching exam:", examError);
+    return Astro.redirect("/404");
+}
+---
+
+<Layout>
+    <div class="exam-container">
+        <div id="exam-start" class="state-card">
+            <h1>{exam.title}</h1>
+            <div class="rules">
+                <p>
+                    <strong>Duration:</strong>
+                    {exam.duration || "Unlimited"} minutes
+                </p>
+                <p><strong>Questions:</strong> {exam.questions.length}</p>
+                <p>Once you start, do not refresh the page.</p>
+            </div>
+            <button id="btn-start" class="btn btn-primary btn-lg"
+                >Start Exam</button
+            >
+        </div>
+
+        <div id="exam-active" class="hidden">
+            <div class="exam-header">
+                <h2>{exam.title}</h2>
+                <div id="timer" class="timer">Time Left: --:--</div>
+            </div>
+
+            <form id="quiz-form">
+                <div class="questions-list">
+                    {
+                        exam.questions.map((q: any, index: number) => (
+                            <div class="question-card">
+                                <p class="question-text">
+                                    <strong>Q{index + 1}:</strong> {q.question}
+                                </p>
+                                <div class="answer-box">
+                                    <input
+                                        type="text"
+                                        name={`q_${q.id}`}
+                                        required
+                                        placeholder="Your answer"
+                                    />
+                                </div>
+                            </div>
+                        ))
+                    }
+                </div>
+                <button type="submit" class="btn btn-primary btn-lg"
+                    >Submit Final Answers</button
+                >
+            </form>
+        </div>
+
+        <div id="exam-result" class="hidden state-card">
+            <h2>Exam Completed!</h2>
+            <div class="score-display">
+                <span class="label">Your Score:</span>
+                <span id="final-score" class="score">--</span>
+            </div>
+            <a href="/dashboard" class="btn btn-outline">Go to Dashboard</a>
+        </div>
+    </div>
+</Layout>
+
+<script
+    define:vars={{
+        questions: exam.questions,
+        examId: id,
+        duration: exam.duration,
+    }}
+>
+    let timeLeft = (duration || 60) * 60;
+    let timerInterval;
+
+    const startCard = document.getElementById("exam-start");
+    const activeCard = document.getElementById("exam-active");
+    const resultCard = document.getElementById("exam-result");
+    const startBtn = document.getElementById("btn-start");
+    const form = document.getElementById("quiz-form");
+    const timerEl = document.getElementById("timer");
+    const scoreEl = document.getElementById("final-score");
+
+    startBtn?.addEventListener("click", () => {
+        startCard.classList.add("hidden");
+        activeCard.classList.remove("hidden");
+        startTimer();
+    });
+
+    function startTimer() {
+        timerInterval = setInterval(() => {
+            if (timeLeft <= 0) {
+                clearInterval(timerInterval);
+                submitExam();
+            } else {
+                timeLeft--;
+                const mins = Math.floor(timeLeft / 60);
+                const secs = timeLeft % 60;
+                timerEl.textContent = `Time Left: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
+            }
+        }, 1000);
+    }
+
+    form?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        submitExam();
+    });
+
+    async function submitExam() {
+        clearInterval(timerInterval);
+        const formData = new FormData(form);
+        let correctCount = 0;
+
+        questions.forEach((q) => {
+            const userAnswer = (formData.get(`q_${q.id}`) || "")
+                .toString()
+                .trim()
+                .toLowerCase();
+            const correctAnswer = q.correct_answer.trim().toLowerCase();
+            if (userAnswer === correctAnswer) {
+                correctCount++;
+            }
+        });
+
+        const score = (correctCount / questions.length) * 100;
+
+        // Save Result
+        const userStr = localStorage.getItem("user");
+        if (userStr) {
+            const user = JSON.parse(userStr);
+            const { supabase } = await import("../../../../lib/supabase");
+            await supabase.from("results").insert([
+                {
+                    exam_id: examId,
+                    user_id: user.id,
+                    score: score,
+                },
+            ]);
+        }
+
+        scoreEl.textContent = score.toFixed(1);
+        activeCard.classList.add("hidden");
+        resultCard.classList.remove("hidden");
+    }
+</script>
+
+<style>
+    .exam-container {
+        max-width: 800px;
+        margin: 2rem auto;
+    }
+
+    .state-card {
+        background: white;
+        padding: 3rem;
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
+        text-align: center;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+
+    .rules {
+        margin: 2rem 0;
+        text-align: left;
+        display: inline-block;
+        padding: 1.5rem;
+        background: #fdf2f2;
+        border-radius: 0.5rem;
+        color: #9b1c1c;
+    }
+
+    .exam-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+        position: sticky;
+        top: 80px;
+        background: var(--bg-color);
+        padding: 1rem 0;
+        z-index: 10;
+    }
+
+    .timer {
+        font-size: 1.25rem;
+        font-weight: 700;
+        color: #ef4444;
+        padding: 0.5rem 1rem;
+        background: white;
+        border: 2px solid #ef4444;
+        border-radius: 0.5rem;
+    }
+
+    .question-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+        margin-bottom: 1.5rem;
+    }
+
+    .question-text {
+        font-size: 1.1rem;
+        margin-bottom: 1.5rem;
+    }
+
+    input[type="text"] {
+        width: 100%;
+        padding: 1rem;
+        border: 2px solid #e5e7eb;
+        border-radius: 0.5rem;
+        font-size: 1rem;
+    }
+
+    input[type="text"]:focus {
+        border-color: var(--primary-color);
+        outline: none;
+    }
+
+    .score-display {
+        margin: 2rem 0;
+    }
+
+    .label {
+        font-size: 1.5rem;
+        color: #6b7280;
+    }
+
+    .score {
+        font-size: 4rem;
+        font-weight: 800;
+        color: var(--primary-color);
+        display: block;
+    }
+
+    .btn-lg {
+        padding: 1rem 2.5rem;
+        font-size: 1.1rem;
+    }
+
+    .hidden {
+        display: none;
+    }
+</style>

@@ -1,0 +1,235 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout>
+    <div class="profile-container">
+        <h1>Account Settings</h1>
+
+        <div class="profile-card">
+            <div class="avatar-section">
+                <div class="avatar-circle" id="avatar-placeholder">?</div>
+                <div class="info">
+                    <h2 id="display-name">Loading...</h2>
+                    <p id="display-role" class="role-badge">Student</p>
+                </div>
+            </div>
+
+            <form id="profile-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="name">Full Name</label>
+                        <input type="text" id="name" name="name" required />
+                    </div>
+                    <div class="form-group">
+                        <label for="email">Email Address</label>
+                        <input
+                            type="email"
+                            id="email"
+                            name="email"
+                            readonly
+                            disabled
+                        />
+                        <small>Email cannot be changed contact admin.</small>
+                    </div>
+                    <div class="form-group">
+                        <label for="phone">Phone Number</label>
+                        <input
+                            type="tel"
+                            id="phone"
+                            name="phone"
+                            placeholder="+62..."
+                        />
+                    </div>
+                    <div class="form-group">
+                        <label for="avatar_url">Avatar URL</label>
+                        <input
+                            type="url"
+                            id="avatar_url"
+                            name="avatar_url"
+                            placeholder="https://..."
+                        />
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="submit" class="btn btn-primary"
+                        >Save Changes</button
+                    >
+                </div>
+            </form>
+        </div>
+    </div>
+</Layout>
+
+<script>
+    import { supabase } from "../lib/supabase";
+
+    const userStr = localStorage.getItem("user");
+    const form = document.getElementById("profile-form") as HTMLFormElement;
+    const displayName = document.getElementById("display-name");
+    const displayRole = document.getElementById("display-role");
+    const avatarPlaceholder = document.getElementById("avatar-placeholder");
+
+    if (!userStr) {
+        window.location.href = "/login";
+    } else {
+        const user = JSON.parse(userStr);
+        loadProfile(user);
+    }
+
+    async function loadProfile(user: any) {
+        displayName!.textContent = user.name;
+        displayRole!.textContent = user.role;
+        avatarPlaceholder!.textContent = user.name.charAt(0).toUpperCase();
+
+        // Set initial values
+        (form.elements.namedItem("name") as HTMLInputElement).value = user.name;
+        (form.elements.namedItem("email") as HTMLInputElement).value =
+            user.email;
+
+        // Fetch from profiles table
+        const { data: profile } = await supabase
+            .from("profiles")
+            .select("*")
+            .eq("user_id", user.id)
+            .single();
+
+        if (profile) {
+            if (profile.phone)
+                (form.elements.namedItem("phone") as HTMLInputElement).value =
+                    profile.phone;
+            if (profile.avatar) {
+                (
+                    form.elements.namedItem("avatar_url") as HTMLInputElement
+                ).value = profile.avatar;
+                // Could update UI to show actual image here
+            }
+        }
+    }
+
+    form?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const user = JSON.parse(localStorage.getItem("user")!);
+        const formData = new FormData(form);
+
+        const name = formData.get("name") as string;
+        const phone = formData.get("phone") as string;
+        const avatar = formData.get("avatar_url") as string;
+
+        // Update users table
+        const { error: userError } = await supabase
+            .from("users")
+            .update({ name })
+            .eq("id", user.id);
+
+        // Update or Insert profiles table
+        const { error: profileError } = await supabase.from("profiles").upsert(
+            {
+                user_id: user.id,
+                phone: phone,
+                avatar: avatar,
+            },
+            { onConflict: "user_id" },
+        );
+
+        if (userError || profileError) {
+            alert("Error saving profile");
+        } else {
+            // Update local storage
+            user.name = name;
+            localStorage.setItem("user", JSON.stringify(user));
+            alert("Profile updated successfully!");
+            window.location.reload();
+        }
+    });
+</script>
+
+<style>
+    .profile-container {
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .profile-card {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 1rem;
+        padding: 2.5rem;
+    }
+
+    .avatar-section {
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+        margin-bottom: 3rem;
+        padding-bottom: 2rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    .avatar-circle {
+        width: 80px;
+        height: 80px;
+        background: var(--primary-color);
+        color: white;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2.5rem;
+        font-weight: 700;
+    }
+
+    .role-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        background: #eef2ff;
+        color: var(--primary-color);
+        border-radius: 2rem;
+        font-size: 0.8rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+
+    .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+        margin-bottom: 2rem;
+    }
+
+    @media (max-width: 640px) {
+        .form-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        font-size: 0.875rem;
+    }
+
+    .form-group input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        box-sizing: border-box;
+    }
+
+    .form-group input:disabled {
+        background: #f9fafb;
+        cursor: not-allowed;
+    }
+
+    small {
+        color: #6b7280;
+        font-size: 0.75rem;
+    }
+
+    .form-actions {
+        text-align: right;
+    }
+</style>

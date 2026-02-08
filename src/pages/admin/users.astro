@@ -1,0 +1,221 @@
+---
+import Layout from "../../layouts/Layout.astro";
+---
+
+<Layout>
+    <div class="admin-container">
+        <aside class="admin-sidebar">
+            <div class="brand">Admin Panel</div>
+            <nav>
+                <a href="/admin/dashboard">Overview</a>
+                <a href="/admin/users" class="active">Users</a>
+                <a href="/admin/classes">Course Management</a>
+                <div class="nav-divider"></div>
+                <a href="/admin/courses/new" class="btn-create-sidebar"
+                    >+ New Course</a
+                >
+            </nav>
+            <div class="footer">
+                <a href="/dashboard">Return to Student Dash</a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <div class="admin-header">
+                <h1>User Management</h1>
+            </div>
+
+            <div class="table-card">
+                <table id="users-table">
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                            <th>Created At</th>
+                        </tr>
+                    </thead>
+                    <tbody id="users-tbody">
+                        <!-- Data injected here -->
+                    </tbody>
+                </table>
+                <div id="loading" class="state-message">Fetching users...</div>
+            </div>
+        </main>
+    </div>
+</Layout>
+
+<script>
+    import { supabase } from "../../lib/supabase";
+
+    const userStr = localStorage.getItem("user");
+    const tbody = document.getElementById("users-tbody");
+    const loading = document.getElementById("loading");
+
+    // Security Check
+    if (!userStr) {
+        window.location.href = "/login";
+    } else {
+        const user = JSON.parse(userStr);
+        if (user.role !== "admin") {
+            alert("Access Denied: Admin only. Your role: " + user.role);
+            window.location.href = "/dashboard";
+        } else {
+            loadUsers();
+        }
+    }
+
+    async function loadUsers() {
+        try {
+            const { data: users, error } = await supabase
+                .from("users")
+                .select("*")
+                .order("created_at", { ascending: false });
+
+            if (error) throw error;
+
+            loading!.style.display = "none";
+
+            users.forEach((user: any) => {
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+          <td>${user.name}</td>
+          <td>${user.email}</td>
+          <td><span class="role-badge ${user.role}">${user.role}</span></td>
+          <td>${new Date(user.created_at).toLocaleDateString()}</td>
+        `;
+                tbody?.appendChild(tr);
+            });
+        } catch (err) {
+            console.error(err);
+            loading!.textContent = "Error loading users.";
+        }
+    }
+</script>
+
+<style>
+    /* Reuse admin-container, sidebar, main styles from dashboard.astro */
+    .admin-container {
+        display: flex;
+        min-height: calc(100vh - 150px);
+        margin: -2rem;
+    }
+
+    .admin-sidebar {
+        width: 240px;
+        background: #1e293b;
+        color: white;
+        display: flex;
+        flex-direction: column;
+    }
+    .admin-sidebar .brand {
+        padding: 2rem;
+        font-size: 1.25rem;
+        font-weight: 800;
+        border-bottom: 1px solid #334155;
+    }
+    .admin-sidebar nav {
+        flex: 1;
+        padding: 1rem 0;
+    }
+    .admin-sidebar nav a {
+        display: block;
+        padding: 1rem 2rem;
+        color: #94a3b8;
+        text-decoration: none;
+    }
+    .admin-sidebar nav a:hover,
+    .admin-sidebar nav a.active {
+        background: #334155;
+        color: white;
+    }
+
+    .nav-divider {
+        height: 1px;
+        background: #334155;
+        margin: 1rem 1.5rem;
+    }
+
+    .btn-create-sidebar {
+        display: block;
+        margin: 0.5rem 1.5rem;
+        padding: 0.75rem;
+        background: var(--primary-color);
+        color: white;
+        text-align: center;
+        text-decoration: none;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+        transition: background 0.2s;
+    }
+
+    .btn-create-sidebar:hover {
+        background: var(--primary-hover);
+    }
+    .admin-sidebar .footer {
+        padding: 1rem;
+        border-top: 1px solid #334155;
+    }
+    .admin-sidebar .footer a {
+        color: #94a3b8;
+        font-size: 0.8rem;
+        text-decoration: none;
+    }
+    .admin-main {
+        flex: 1;
+        padding: 2rem 3rem;
+        background: #f8fafc;
+    }
+
+    .table-card {
+        background: white;
+        border-radius: 0.75rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border-color);
+        overflow: hidden;
+    }
+
+    table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: left;
+    }
+    th {
+        background: #f1f5f9;
+        padding: 1rem 1.5rem;
+        font-size: 0.875rem;
+        color: #475569;
+    }
+    td {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #f1f5f9;
+        font-size: 0.9rem;
+    }
+
+    .role-badge {
+        padding: 0.2rem 0.6rem;
+        border-radius: 1rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+    }
+    .role-badge.admin {
+        background: #fee2e2;
+        color: #991b1b;
+    }
+    .role-badge.instructor {
+        background: #fef3c7;
+        color: #92400e;
+    }
+    .role-badge.student {
+        background: #dcfce7;
+        color: #166534;
+    }
+
+    .state-message {
+        padding: 3rem;
+        text-align: center;
+        color: #64748b;
+    }
+</style>
