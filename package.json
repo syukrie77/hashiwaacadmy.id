@@ -9,6 +9,7 @@
     "astro": "astro"
   },
   "dependencies": {
+    "@astrojs/vercel": "^9.0.4",
     "@supabase/supabase-js": "^2.94.1",
     "astro": "^5.17.1",
     "tslib": "^2.8.1"
