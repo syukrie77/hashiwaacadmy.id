@@ -56,7 +56,28 @@ const sortedModules = (modules || []).map((mod: any) => ({
   <div class="learn-container">
     <aside class="sidebar">
       <div class="sidebar-header">
-        <a href={`/courses/${courseId}`} class="back-link">← Back to Course</a>
+        <div class="header-top">
+          <a href={`/courses/${courseId}`} class="back-link">← Back</a>
+          <button
+            id="sidebar-toggle"
+            class="sidebar-toggle"
+            title="Toggle Sidebar"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              ><rect x="3" y="3" width="18" height="18" rx="2" ry="2"
+              ></rect><line x1="9" y1="3" x2="9" y2="21"></line></svg
+            >
+          </button>
+        </div>
         <h3>{material.modules.classes.title}</h3>
       </div>
       <nav class="course-outline">
@@ -90,6 +111,25 @@ const sortedModules = (modules || []).map((mod: any) => ({
     </aside>
 
     <main class="content-viewer">
+      <button id="restore-sidebar-btn" title="Show Course Menu">
+        <svg
+          xmlns="http://www.w3.org/2000/svg"
+          width="20"
+          height="20"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          ><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line
+            x1="9"
+            y1="3"
+            x2="9"
+            y2="21"></line></svg
+        >
+        <span>Menu</span>
+      </button>
       <div id="secure-content" class="hidden" style="display: none;">
         <div class="viewer-header">
           <h2>{material.title}</h2>
@@ -283,8 +323,49 @@ const sortedModules = (modules || []).map((mod: any) => ({
     });
   }
 
+  function initSidebar() {
+    const container = document.querySelector(".learn-container");
+    const sidebar = document.querySelector(".sidebar");
+    const toggleBtn = document.getElementById("sidebar-toggle");
+    const restoreBtn = document.getElementById("restore-sidebar-btn");
+
+    const toggleSidebar = () => {
+      sidebar?.classList.toggle("collapsed");
+      container?.classList.toggle("sidebar-collapsed");
+
+      // Save preference
+      const isCollapsed = sidebar?.classList.contains("collapsed");
+      localStorage.setItem("course_sidebar_collapsed", String(isCollapsed));
+    };
+
+    toggleBtn?.addEventListener("click", toggleSidebar);
+    restoreBtn?.addEventListener("click", toggleSidebar);
+
+    // Load preference
+    const savedState = localStorage.getItem("course_sidebar_collapsed");
+    if (savedState === "true") {
+      sidebar?.classList.add("collapsed");
+      container?.classList.add("sidebar-collapsed");
+    }
+
+    // Auto-collapse on small screens if no preference is set, or force it?
+    // Let's just respect the preference, but if it's mobile, we handle differently via CSS media queries usually.
+    // But user asked for "auto minimize when material is selected" -> This implies starting collapsed?
+    // Or maybe collapsing effectively gives more space.
+
+    // Auto-collapse if window is small (mobile/tablet) and no preference saved
+    if (savedState === null && window.innerWidth < 1024) {
+      sidebar?.classList.add("collapsed");
+      container?.classList.add("sidebar-collapsed");
+    }
+  }
+
   init();
-  document.addEventListener("astro:after-swap", init);
+  initSidebar();
+  document.addEventListener("astro:after-swap", () => {
+    init();
+    initSidebar();
+  });
 </script>
 
 <div
@@ -309,24 +390,98 @@ const sortedModules = (modules || []).map((mod: any) => ({
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    transition:
+      width 0.3s ease,
+      transform 0.3s ease;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
   }
 
+  .sidebar.collapsed {
+    width: 0;
+    overflow: hidden;
+    padding: 0;
+    border: none;
+  }
+
+  /* Optional: Show a mini floating toggle when collapsed? 
+     For now, we will put the toggle IN the content view when sidebar is closed? 
+     Actually, better design: Keep a think strip or move toggle to main content?
+     Let's try moving the toggle to be absolute positioned or accessible.
+     
+     Decision: When collapsed, the sidebar is GONE (width 0). 
+     We need a button in the main content to bring it back.
+  */
+
   .sidebar-header {
-    padding: 1.5rem;
+    padding: 1rem;
     border-bottom: 1px solid var(--border-color);
   }
 
+  .header-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+  }
+
+  .sidebar-toggle {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #6b7280;
+    padding: 4px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .sidebar-toggle:hover {
+    background-color: #f3f4f6;
+    color: var(--primary-color);
+  }
+
   .back-link {
-    display: block;
     font-size: 0.875rem;
     color: #6b7280;
     text-decoration: none;
-    margin-bottom: 0.5rem;
   }
 
   .sidebar-header h3 {
     margin: 0;
-    font-size: 1.1rem;
+    font-size: 1rem;
+    line-height: 1.4;
+  }
+
+  /* Floating toggle implementation for when sidebar is hidden */
+  #restore-sidebar-btn {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 20;
+    background: white;
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    padding: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    display: none; /* Hidden by default */
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--text-color);
+  }
+
+  #restore-sidebar-btn:hover {
+    border-color: var(--primary-color);
+    color: var(--primary-color);
+  }
+
+  .learn-container.sidebar-collapsed #restore-sidebar-btn {
+    display: flex;
   }
 
   .course-outline {
