@@ -75,18 +75,41 @@ const courseModules = sortedCourseModules || [];
             </button>
         </div>
 
-        <div id="course-progress-container" class="course-progress hidden">
-            <div class="progress-info">
-                <span>Progress Belajar</span>
-                <span id="course-progress-text">0%</span>
-            </div>
-            <div class="progress-bar-bg">
-                <div
-                    id="course-progress-fill"
-                    class="progress-fill"
-                    style="width: 0%"
-                >
+        <div
+            id="course-progress-container"
+            class="course-overall-progress hidden"
+        >
+            <div class="overall-circle-container">
+                <svg width="80" height="80" viewBox="0 0 80 80">
+                    <circle
+                        class="bg"
+                        cx="40"
+                        cy="40"
+                        r="36"
+                        fill="none"
+                        stroke="#e5e7eb"
+                        stroke-width="6"></circle>
+                    <circle
+                        id="course-progress-circle-fill"
+                        class="progress"
+                        cx="40"
+                        cy="40"
+                        r="36"
+                        fill="none"
+                        stroke="var(--primary-color)"
+                        stroke-width="6"
+                        stroke-dasharray="226.2"
+                        stroke-dashoffset="226.2"
+                        stroke-linecap="round"></circle>
+                </svg>
+                <div class="overall-progress-info">
+                    <span id="course-progress-text">0%</span>
+                    <span class="label">Selesai</span>
                 </div>
+            </div>
+            <div class="progress-meta">
+                <h3>Progress Belajar</h3>
+                <p>Teruskan belajar untuk menyelesaikan kursus ini.</p>
             </div>
         </div>
     </div>
@@ -118,6 +141,38 @@ const courseModules = sortedCourseModules || [];
                                         )}
                                     </div>
                                     <div class="mod-status">
+                                        <div class="mod-progress-circle hidden">
+                                            <svg
+                                                width="36"
+                                                height="36"
+                                                viewBox="0 0 36 36"
+                                            >
+                                                <circle
+                                                    class="bg"
+                                                    cx="18"
+                                                    cy="18"
+                                                    r="16"
+                                                    fill="none"
+                                                    stroke="#e5e7eb"
+                                                    stroke-width="3"
+                                                />
+                                                <circle
+                                                    class="progress"
+                                                    cx="18"
+                                                    cy="18"
+                                                    r="16"
+                                                    fill="none"
+                                                    stroke="var(--primary-color)"
+                                                    stroke-width="3"
+                                                    stroke-dasharray="100.5"
+                                                    stroke-dashoffset="100.5"
+                                                    stroke-linecap="round"
+                                                />
+                                            </svg>
+                                            <span class="progress-text-sm">
+                                                0%
+                                            </span>
+                                        </div>
                                         <span class="status-icon">
                                             🔒 Locked
                                         </span>
@@ -125,15 +180,6 @@ const courseModules = sortedCourseModules || [];
                                             Unlock
                                         </button>
                                     </div>
-                                </div>
-                                <div class="mod-progress hidden">
-                                    <div class="progress-bar-bg sm">
-                                        <div
-                                            class="progress-fill"
-                                            style="width: 0%"
-                                        />
-                                    </div>
-                                    <span class="progress-text-sm">0%</span>
                                 </div>
                                 <ul class="materials-list">
                                     {mod.materials &&
@@ -367,9 +413,7 @@ const courseModules = sortedCourseModules || [];
                 };
             } else {
                 enrollBtn.textContent =
-                    coursePrice > 0
-                        ? `Daftar - Rp ${coursePrice.toLocaleString("id-ID")}`
-                        : "Daftar Gratis";
+                    coursePrice > 0 ? "Daftar" : "Daftar Gratis";
                 enrollBtn.onclick = async (e) => {
                     e.preventDefault();
                     if (!user) {
@@ -466,17 +510,26 @@ const courseModules = sortedCourseModules || [];
 
             // Render Module Progress
             if (isCourseEnrolled && isPurchased && moduleTotalCount > 0) {
+                const modProgressDiv = modCard.querySelector(
+                    ".mod-progress-circle",
+                );
                 modProgressDiv?.classList.remove("hidden");
                 const percent = Math.round(
                     (moduleCompletedCount / moduleTotalCount) * 100,
                 );
-                const fill = modProgressDiv?.querySelector(
-                    ".progress-fill",
-                ) as HTMLElement;
+                const circle = modProgressDiv?.querySelector(
+                    "circle.progress",
+                ) as SVGCircleElement;
                 const text = modProgressDiv?.querySelector(
                     ".progress-text-sm",
                 ) as HTMLElement;
-                if (fill) fill.style.width = `${percent}%`;
+
+                if (circle) {
+                    const circumference = 2 * Math.PI * 16;
+                    const offset =
+                        circumference - (percent / 100) * circumference;
+                    circle.style.strokeDashoffset = offset.toString();
+                }
                 if (text) text.textContent = `${percent}%`;
             }
 
@@ -546,9 +599,17 @@ const courseModules = sortedCourseModules || [];
             const coursePercent = Math.round(
                 (totalCompletedInCourse / totalMaterialsInCourse) * 100,
             );
-            const courseFill = document.getElementById("course-progress-fill");
+            const courseCircle = document.getElementById(
+                "course-progress-circle-fill",
+            ) as any;
             const courseText = document.getElementById("course-progress-text");
-            if (courseFill) courseFill.style.width = `${coursePercent}%`;
+
+            if (courseCircle) {
+                const circumference = 2 * Math.PI * 36;
+                const offset =
+                    circumference - (coursePercent / 100) * circumference;
+                courseCircle.style.strokeDashoffset = offset.toString();
+            }
             if (courseText) courseText.textContent = `${coursePercent}%`;
         }
     }
@@ -776,45 +837,85 @@ const courseModules = sortedCourseModules || [];
         justify-content: flex-end;
     }
 
-    /* Progress Styles */
-    .course-progress {
-        margin-top: 1.5rem;
-        max-width: 400px;
-    }
-    .progress-info {
-        display: flex;
-        justify-content: space-between;
-        margin-bottom: 0.5rem;
-        font-size: 0.9rem;
-        font-weight: 500;
-        color: #4b5563;
-    }
-    .progress-bar-bg {
-        height: 8px;
-        background: #e5e7eb;
-        border-radius: 4px;
-        overflow: hidden;
-    }
-    .progress-bar-bg.sm {
-        height: 4px;
-        flex: 1;
-    }
-    .progress-fill {
-        height: 100%;
-        background: var(--primary-color);
-        transition: width 0.3s ease;
-    }
-    .mod-progress {
-        padding: 0 1rem 0.75rem 1rem;
+    /* Overall Circle Progress Styles */
+    .course-overall-progress {
+        margin-top: 2rem;
         display: flex;
         align-items: center;
-        gap: 0.75rem;
+        gap: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--border-color);
     }
-    .progress-text-sm {
-        font-size: 0.75rem;
+    .overall-circle-container {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .overall-circle-container svg {
+        transform: rotate(-90deg);
+    }
+    .overall-circle-container .progress {
+        transition: stroke-dashoffset 0.8s ease-out;
+    }
+    .overall-progress-info {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        line-height: 1.1;
+    }
+    #course-progress-text {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--primary-color);
+    }
+    .overall-progress-info .label {
+        font-size: 0.65rem;
         font-weight: 600;
         color: #6b7280;
-        min-width: 30px;
+        text-transform: uppercase;
+    }
+    .progress-meta h3 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1.1rem;
+    }
+    .progress-meta p {
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+
+    @media (max-width: 640px) {
+        .course-overall-progress {
+            flex-direction: column;
+            text-align: center;
+            gap: 1rem;
+        }
+    }
+
+    /* Circular Progress Styles */
+    .mod-progress-circle {
+        position: relative;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .mod-progress-circle svg {
+        transform: rotate(-90deg);
+    }
+    .mod-progress-circle .progress {
+        transition: stroke-dashoffset 0.5s ease;
+    }
+    .mod-progress-circle .progress-text-sm {
+        position: absolute;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: var(--text-color);
     }
     .hidden {
         display: none;

@@ -61,6 +61,14 @@
 					navLinks.appendChild(adminLi);
 				}
 
+				// Added Instructor link for instructor users
+				if (user.role === "instructor" && navLinks) {
+					const instructorLi = document.createElement("li");
+					instructorLi.innerHTML =
+						'<a href="/instructor/dashboard" style="color: #059669; font-weight: 700;">Instructor</a>';
+					navLinks.appendChild(instructorLi);
+				}
+
 				authContainer.innerHTML = `
 					<div class="user-pill">
 						<a href="/profile" class="profile-link">

@@ -99,6 +99,19 @@ import Layout from "../layouts/Layout.astro";
             contentEl?.prepend(adminAlert);
         }
 
+        // Instructor banner
+        if (user.role === "instructor") {
+            const instructorAlert = document.createElement("div");
+            instructorAlert.style.padding = "1rem";
+            instructorAlert.style.background = "#d1fae5";
+            instructorAlert.style.color = "#065f46";
+            instructorAlert.style.marginBottom = "1rem";
+            instructorAlert.style.borderRadius = "0.5rem";
+            instructorAlert.innerHTML =
+                '<strong>Instructor:</strong> <a href="/instructor/dashboard" style="text-decoration: underline; color: inherit;">Kelola Course Anda</a>';
+            contentEl?.prepend(instructorAlert);
+        }
+
         loadDashboard(user);
     }
 
