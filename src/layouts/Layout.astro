@@ -49,6 +49,11 @@
 			// Mobile menu logic
 			const menuToggle = document.querySelector(".mobile-menu-toggle");
 
+			// Select all interactive elements inside the mobile menu
+			const mobileLinks = document.querySelectorAll(".nav-links a");
+			const mobileAuthButtons =
+				document.querySelectorAll(".auth-buttons a");
+
 			function toggleMenu() {
 				menuToggle?.classList.toggle("active");
 				navContainer?.classList.toggle("active");
@@ -60,8 +65,23 @@
 					: "";
 			}
 
+			function closeMenu() {
+				menuToggle?.classList.remove("active");
+				navContainer?.classList.remove("active");
+				navOverlay?.classList.remove("active");
+				document.body.style.overflow = "";
+			}
+
 			menuToggle?.addEventListener("click", toggleMenu);
-			navOverlay?.addEventListener("click", toggleMenu);
+			navOverlay?.addEventListener("click", closeMenu);
+
+			// Auto close menu when clicking links
+			mobileLinks.forEach((link) => {
+				link.addEventListener("click", closeMenu);
+			});
+			mobileAuthButtons.forEach((btn) => {
+				btn.addEventListener("click", closeMenu);
+			});
 
 			if (userStr && authContainer) {
 				const user = JSON.parse(userStr);
@@ -218,7 +238,7 @@
 		border: none;
 		cursor: pointer;
 		padding: 5px;
-		z-index: 101;
+		z-index: 1001; /* Ensure it's above the nav-container (1000) */
 	}
 
 	.mobile-menu-toggle span {
@@ -298,24 +318,36 @@
 			transform: translateY(-7px) rotate(-45deg);
 		}
 
+		/* Prevent horizontal scroll from off-canvas menu */
+		html,
+		body {
+			overflow-x: hidden;
+		}
+
 		.nav-container {
 			position: fixed;
 			top: 0;
-			right: -100%;
+			right: 0;
 			width: 80%;
 			max-width: 300px;
 			height: 100vh;
 			background: white;
 			flex-direction: column;
-			padding: 5rem 1.5rem 2rem;
+			padding: 6rem 2rem 2rem; /* Increased top padding to clear the toggle button */
 			box-shadow: -10px 0 30px rgba(0, 0, 0, 0.1);
-			transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
+			/* Use transform for better performance and reliability */
+			transform: translateX(100%);
+			transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+
 			z-index: 1000;
 			align-items: stretch;
+			overflow-y: auto; /* Allow scrolling if menu is tall */
 		}
 
 		.nav-container.active {
-			right: 0;
+			/* Slide in */
+			transform: translateX(0);
 		}
 
 		/* Overlay for mobile menu */
