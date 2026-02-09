@@ -257,8 +257,9 @@ import Layout from "../layouts/Layout.astro";
     .stat-card {
         background: white;
         padding: 1.5rem;
-        border-radius: 0.75rem;
+        border-radius: 1rem;
         border: 1px solid var(--border-color);
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
     }
 
     .stat-label {
@@ -266,21 +267,22 @@ import Layout from "../layouts/Layout.astro";
         font-size: 0.875rem;
         color: #6b7280;
         margin-bottom: 0.5rem;
+        font-weight: 500;
     }
 
     .stat-value {
-        font-size: 2rem;
-        font-weight: 700;
+        font-size: 2.25rem;
+        font-weight: 800;
         color: var(--primary-color);
     }
 
     .dashboard-grid {
         display: grid;
-        grid-template-columns: 1fr 300px;
+        grid-template-columns: 1fr 320px;
         gap: 2.5rem;
     }
 
-    @media (max-width: 900px) {
+    @media (max-width: 1024px) {
         .dashboard-grid {
             grid-template-columns: 1fr;
         }
@@ -295,47 +297,56 @@ import Layout from "../layouts/Layout.astro";
 
     .section-header h3 {
         margin: 0;
+        font-size: 1.5rem;
+        font-weight: 800;
     }
 
     .link {
         font-size: 0.875rem;
         color: var(--primary-color);
         text-decoration: none;
-        font-weight: 500;
+        font-weight: 700;
     }
 
     .course-card-compact {
         background: white;
-        padding: 1.25rem;
+        padding: 1.5rem;
         border: 1px solid var(--border-color);
-        border-radius: 0.5rem;
+        border-radius: 1rem;
         margin-bottom: 1rem;
         display: flex;
         justify-content: space-between;
         align-items: center;
-        gap: 1rem;
+        gap: 1.5rem;
+        transition: all 0.2s ease;
+    }
+
+    .course-card-compact:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
     }
 
     @media (max-width: 640px) {
         .course-card-compact {
             flex-direction: column;
-            align-items: flex-start;
-        }
-        .course-card-compact .btn {
-            width: 100%;
+            align-items: stretch;
+            gap: 1rem;
+            text-align: center;
         }
     }
 
     .course-card-compact h4 {
-        margin: 0 0 0.25rem 0;
+        margin: 0 0 0.5rem 0;
+        font-size: 1.1rem;
+        font-weight: 700;
     }
 
     .badge {
-        font-size: 0.7rem;
+        font-size: 0.75rem;
         text-transform: uppercase;
-        font-weight: 700;
-        padding: 0.1rem 0.5rem;
-        border-radius: 4px;
+        font-weight: 800;
+        padding: 0.25rem 0.75rem;
+        border-radius: 999px;
         background: #f3f4f6;
     }
 
@@ -350,36 +361,46 @@ import Layout from "../layouts/Layout.astro";
         margin: 0;
     }
 
+    .sidebar h3 {
+        font-size: 1.25rem;
+        font-weight: 800;
+        margin-bottom: 1.5rem;
+    }
+
     .activity-list li {
         display: flex;
         justify-content: space-between;
-        padding: 0.75rem 0;
-        border-bottom: 1px solid #f3f4f6;
-        font-size: 0.9rem;
+        padding: 1rem 0;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.95rem;
     }
 
     .score {
-        font-weight: 700;
+        font-weight: 800;
     }
     .pass {
-        color: #166534;
+        color: #059669;
     }
     .fail {
-        color: #991b1b;
+        color: #dc2626;
     }
 
     .empty-state {
         text-align: center;
-        padding: 4rem;
+        padding: 4rem 2rem;
         background: white;
         border: 2px dashed var(--border-color);
-        border-radius: 0.5rem;
+        border-radius: 1rem;
     }
 
     .empty-small {
         font-size: 0.875rem;
         color: #9ca3af;
-        padding: 1rem 0;
+        padding: 2rem 0;
+        text-align: center;
+        background: #fff;
+        border-radius: 1rem;
+        border: 1px solid var(--border-color);
     }
 
     .hidden {
