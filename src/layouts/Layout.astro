@@ -87,12 +87,12 @@
 
 <style is:global>
 	:root {
-		--primary-color: #4f46e5;
-		--primary-hover: #4338ca;
+		--primary-color: #f59e0b;
+		--primary-hover: #d97706;
 		--text-color: #1f2937;
-		--bg-color: #f9fafb;
+		--bg-color: #fffbeb;
 		--card-bg: #ffffff;
-		--border-color: #e5e7eb;
+		--border-color: #e7e5e4;
 	}
 
 	html,
@@ -123,9 +123,11 @@
 	}
 
 	.logo {
-		font-weight: 700;
+		font-weight: 800;
 		font-size: 1.5rem;
 		color: var(--primary-color);
+		text-transform: uppercase;
+		letter-spacing: 1px;
 	}
 
 	.nav-container {
@@ -160,10 +162,11 @@
 	}
 
 	.user-pill {
-		background: #f3f4f6;
+		background: white;
 		padding: 0.4rem 0.8rem;
 		border-radius: 9999px;
 		border: 1px solid var(--border-color);
+		box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 	}
 
 	.profile-link {
@@ -181,12 +184,13 @@
 
 	.user-role-tag {
 		font-size: 0.7rem;
-		background: #e5e7eb;
+		background: var(--bg-color);
 		padding: 0.1rem 0.4rem;
 		border-radius: 4px;
-		color: #4b5563;
+		color: #92400e;
 		text-transform: uppercase;
 		font-weight: 700;
+		border: 1px solid #fef3c7;
 	}
 
 	.mobile-menu-toggle {
@@ -211,7 +215,7 @@
 	.btn {
 		padding: 0.5rem 1rem;
 		border-radius: 0.375rem;
-		font-weight: 500;
+		font-weight: 600;
 		text-decoration: none;
 		transition: all 0.2s;
 		display: inline-block;
@@ -221,20 +225,25 @@
 	.btn-outline {
 		border: 1px solid var(--border-color);
 		color: var(--text-color);
+		background: white;
 	}
 
 	.btn-outline:hover {
 		background-color: var(--bg-color);
+		border-color: var(--primary-hover);
 	}
 
 	.btn-primary {
 		background-color: var(--primary-color);
-		color: white;
+		color: #000000; /* Black text for better contrast on Gold */
 		border: 1px solid var(--primary-color);
+		box-shadow: 0 2px 4px rgba(245, 158, 11, 0.2);
 	}
 
 	.btn-primary:hover {
 		background-color: var(--primary-hover);
+		border-color: var(--primary-hover);
+		transform: translateY(-1px);
 	}
 
 	main {

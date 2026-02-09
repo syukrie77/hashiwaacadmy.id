@@ -1,12 +1,13 @@
 ---
 import Layout from "../layouts/Layout.astro";
 import { supabase } from "../lib/supabase";
-
-const { data: classes, error } = await supabase
+const { data: classesData, error } = await supabase
 	.from("classes")
 	.select("*")
 	.eq("is_active", true)
 	.order("title");
+
+const classes = classesData as any[] | null;
 
 if (error) {
 	console.error("Error fetching classes:", error);
@@ -22,9 +23,12 @@ if (error) {
 	<section class="courses-section">
 		<h2>Available Courses</h2>
 		{
-			!classes || classes.length === 0 ? (
+			(!classes || classes.length === 0) && (
 				<p>No courses available at the moment.</p>
-			) : (
+			)
+		}
+		{
+			classes && classes.length > 0 && (
 				<div class="course-grid">
 					{classes.map((course) => (
 						<div class="course-card">
@@ -64,7 +68,8 @@ if (error) {
 		const { data: enrollments } = await supabase
 			.from("enrollments")
 			.select("class_id")
-			.eq("user_id", user.id);
+			.eq("user_id", user.id)
+			.returns<{ class_id: string }[]>();
 
 		if (!enrollments) return;
 
@@ -100,10 +105,13 @@ if (error) {
 	.hero {
 		text-align: center;
 		padding: 4rem 2rem;
-		background: linear-gradient(135deg, #4f46e5 0%, #818cf8 100%);
+		background: linear-gradient(135deg, #f59e0b 0%, #fcd34d 100%);
 		border-radius: 1rem;
-		color: white;
+		color: #1f2937;
 		margin-bottom: 3rem;
+		box-shadow:
+			0 4px 6px -1px rgba(245, 158, 11, 0.1),
+			0 2px 4px -1px rgba(245, 158, 11, 0.06);
 	}
 
 	.hero h1 {
