@@ -9,260 +9,416 @@ if (!courseId || !id) {
     return Astro.redirect("/404");
 }
 
-// Fetch exam details and questions
-const { data: exam, error: examError } = await supabase
-    .from("exams")
-    .select(
-        `
-    *,
-    questions (*)
-  `,
-    )
-    .eq("id", id)
-    .single();
-
-if (examError || !exam) {
-    console.error("Error fetching exam:", examError);
-    return Astro.redirect("/404");
-}
+// Check logged in user? (Client-side usually, but server-side check is good too)
+// For simplicity in Astro, we might rely on client-side redirect or middleware.
 ---
 
 <Layout>
     <div class="exam-container">
-        <div id="exam-start" class="state-card">
-            <h1>{exam.title}</h1>
-            <div class="rules">
-                <p>
-                    <strong>Duration:</strong>
-                    {exam.duration || "Unlimited"} minutes
-                </p>
-                <p><strong>Questions:</strong> {exam.questions.length}</p>
-                <p>Once you start, do not refresh the page.</p>
+        <header class="exam-header">
+            <h1 id="exam-title">Loading Exam...</h1>
+            <div class="exam-meta">
+                <span id="timer" class="timer badge">--:--</span>
             </div>
-            <button id="btn-start" class="btn btn-primary btn-lg"
-                >Start Exam</button
-            >
-        </div>
+        </header>
 
-        <div id="exam-active" class="hidden">
-            <div class="exam-header">
-                <h2>{exam.title}</h2>
-                <div id="timer" class="timer">Time Left: --:--</div>
-            </div>
+        <main class="exam-content">
+            <div id="loading" class="state-message">Preparing your exam...</div>
+            <div id="error-msg" class="error-message hidden"></div>
 
-            <form id="quiz-form">
-                <div class="questions-list">
-                    {
-                        exam.questions.map((q: any, index: number) => (
-                            <div class="question-card">
-                                <p class="question-text">
-                                    <strong>Q{index + 1}:</strong> {q.question}
-                                </p>
-                                <div class="answer-box">
-                                    <input
-                                        type="text"
-                                        name={`q_${q.id}`}
-                                        required
-                                        placeholder="Your answer"
-                                    />
-                                </div>
-                            </div>
-                        ))
-                    }
+            <form id="exam-form" class="hidden">
+                <div id="questions-container"></div>
+
+                <div class="exam-actions">
+                    <button type="submit" class="btn btn-primary btn-lg"
+                        >Submit Exam</button
+                    >
                 </div>
-                <button type="submit" class="btn btn-primary btn-lg"
-                    >Submit Final Answers</button
-                >
             </form>
-        </div>
 
-        <div id="exam-result" class="hidden state-card">
-            <h2>Exam Completed!</h2>
-            <div class="score-display">
-                <span class="label">Your Score:</span>
-                <span id="final-score" class="score">--</span>
+            <div id="result-view" class="hidden result-container">
+                <h2>Exam Submitted!</h2>
+                <p>Your answers have been recorded.</p>
+                <div id="score-display" class="score-card hidden">
+                    <span class="score-label">Your Score:</span>
+                    <span class="score-value" id="final-score">--</span>
+                </div>
+                <div class="actions">
+                    <a href={`/courses/${courseId}`} class="btn btn-outline"
+                        >Back to Course</a
+                    >
+                </div>
             </div>
-            <a href="/dashboard" class="btn btn-outline">Go to Dashboard</a>
-        </div>
+        </main>
     </div>
 </Layout>
 
-<script
-    define:vars={{
-        questions: exam.questions,
-        examId: id,
-        duration: exam.duration,
-    }}
->
-    let timeLeft = (duration || 60) * 60;
-    let timerInterval;
+<script>
+    import { supabase } from "../../../../lib/supabase";
 
-    const startCard = document.getElementById("exam-start");
-    const activeCard = document.getElementById("exam-active");
-    const resultCard = document.getElementById("exam-result");
-    const startBtn = document.getElementById("btn-start");
-    const form = document.getElementById("quiz-form");
-    const timerEl = document.getElementById("timer");
-    const scoreEl = document.getElementById("final-score");
+    // Params from URL
+    const pathParts = window.location.pathname.split("/");
+    const courseId = pathParts[pathParts.length - 3];
+    const examId = pathParts[pathParts.length - 1];
 
-    startBtn?.addEventListener("click", () => {
-        startCard.classList.add("hidden");
-        activeCard.classList.remove("hidden");
-        startTimer();
-    });
+    let submissionId = null;
+    let examDuration = 0; // minutes
+    let examStartTime = null;
 
-    function startTimer() {
-        timerInterval = setInterval(() => {
-            if (timeLeft <= 0) {
-                clearInterval(timerInterval);
-                submitExam();
-            } else {
-                timeLeft--;
-                const mins = Math.floor(timeLeft / 60);
-                const secs = timeLeft % 60;
-                timerEl.textContent = `Time Left: ${mins}:${secs < 10 ? "0" : ""}${secs}`;
-            }
-        }, 1000);
-    }
-
-    form?.addEventListener("submit", async (e) => {
-        e.preventDefault();
-        submitExam();
-    });
-
-    async function submitExam() {
-        clearInterval(timerInterval);
-        const formData = new FormData(form);
-        let correctCount = 0;
-
-        questions.forEach((q) => {
-            const userAnswer = (formData.get(`q_${q.id}`) || "")
-                .toString()
-                .trim()
-                .toLowerCase();
-            const correctAnswer = q.correct_answer.trim().toLowerCase();
-            if (userAnswer === correctAnswer) {
-                correctCount++;
-            }
-        });
-
-        const score = (correctCount / questions.length) * 100;
-
-        // Save Result
+    async function init() {
         const userStr = localStorage.getItem("user");
-        if (userStr) {
-            const user = JSON.parse(userStr);
-            const { supabase } = await import("../../../../lib/supabase");
-            await supabase.from("results").insert([
-                {
-                    exam_id: examId,
-                    user_id: user.id,
-                    score: score,
-                },
-            ]);
+        if (!userStr) {
+            window.location.href = "/login";
+            return;
+        }
+        const user = JSON.parse(userStr);
+
+        // 1. Fetch Exam Details
+        const { data: exam, error: exError } = await supabase
+            .from("exams")
+            .select("*")
+            .eq("id", examId)
+            .single();
+
+        if (exError || !exam) {
+            showError("Exam not found or error loading.");
+            return;
         }
 
-        scoreEl.textContent = score.toFixed(1);
-        activeCard.classList.add("hidden");
-        resultCard.classList.remove("hidden");
+        document.getElementById("exam-title").textContent = exam.title;
+        examDuration = exam.duration || 60;
+
+        // 2. Check Submission Status
+        let { data: sub, error: subError } = await supabase
+            .from("exam_submissions")
+            .select("*")
+            .eq("user_id", user.id)
+            .eq("exam_id", examId)
+            .single();
+
+        if (!sub) {
+            // Start new submission
+            const { data: newSub, error: createError } = await supabase
+                .from("exam_submissions")
+                .insert({
+                    exam_id: examId,
+                    user_id: user.id,
+                    status: "in_progress",
+                    started_at: new Date().toISOString(),
+                })
+                .select()
+                .single();
+
+            if (createError) {
+                showError("Failed to start exam.");
+                return;
+            }
+            submissionId = newSub.id;
+            examStartTime = new Date(newSub.started_at);
+        } else {
+            submissionId = sub.id;
+            examStartTime = new Date(sub.started_at);
+
+            if (sub.status === "submitted" || sub.status === "graded") {
+                showResult(sub);
+                return;
+            }
+        }
+
+        // 3. Fetch Questions
+        const { data: questions, error: qError } = await supabase
+            .from("questions")
+            .select(
+                `
+                *,
+                question_options (id, option_text, order_no)
+            `,
+            )
+            .eq("exam_id", examId)
+            .order("order_no", { ascending: true });
+
+        if (qError) {
+            showError("Failed to load questions.");
+            return;
+        }
+
+        // Note: For students, we should NOT verify is_correct on frontend ideally.
+        // But RLS "Public read options" usually returns all columns.
+        // Ideally we should filter out is_correct for students via RLS or Select query, but
+        // for this MVP we assume the student isn't inspecting network tab deeply or we select specific columns.
+        // We selected specific columns above for question_options! (id, option_text, order_no). Good.
+
+        renderQuestions(questions);
+        startTimer();
     }
+
+    function renderQuestions(questions) {
+        const container = document.getElementById("questions-container");
+        container.innerHTML = "";
+
+        questions.forEach((q, index) => {
+            const qEl = document.createElement("div");
+            qEl.className = "question-block";
+
+            let inputHtml = "";
+            if (q.type === "multiple_choice") {
+                // Sort options
+                q.question_options?.sort(
+                    (a, b) => (a.order_no || 0) - (b.order_no || 0),
+                );
+
+                q.question_options?.forEach((opt) => {
+                    inputHtml += `
+                        <label class="option-label">
+                            <input type="radio" name="q_${q.id}" value="${opt.id}" required>
+                            <span>${opt.option_text}</span>
+                        </label>
+                     `;
+                });
+            } else if (q.type === "essay") {
+                inputHtml = `
+                    <textarea name="q_${q.id}" class="essay-input" rows="5" placeholder="Type your answer here..."></textarea>
+                `;
+            } else if (q.type === "true_false") {
+                // Implement if needed, similar to MCQ
+                inputHtml = `
+                    <label class="option-label"><input type="radio" name="q_${q.id}" value="true"> True</label>
+                    <label class="option-label"><input type="radio" name="q_${q.id}" value="false"> False</label>
+                `;
+            }
+
+            qEl.innerHTML = `
+                <div class="q-header">
+                    <span class="q-num">${index + 1}.</span>
+                    <span class="q-text">${q.question}</span>
+                    <span class="q-pts">(${q.points} pts)</span>
+                </div>
+                <div class="q-body">
+                    ${inputHtml}
+                </div>
+            `;
+            container.appendChild(qEl);
+        });
+
+        document.getElementById("loading").classList.add("hidden");
+        document.getElementById("exam-form").classList.remove("hidden");
+    }
+
+    function startTimer() {
+        // Simple timer based on start time + duration
+        const timerEl = document.getElementById("timer");
+        const endTime = new Date(
+            examStartTime.getTime() + examDuration * 60000,
+        );
+
+        const update = () => {
+            const now = new Date();
+            const diff = endTime - now;
+
+            if (diff <= 0) {
+                // Time's up!
+                timerEl.textContent = "00:00";
+                clearInterval(interval);
+                alert("Time is up! Submitting exam...");
+                submitExam();
+                return;
+            }
+
+            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+            const s = Math.floor((diff % (1000 * 60)) / 1000);
+
+            timerEl.textContent = `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+        };
+
+        const interval = setInterval(update, 1000);
+        update();
+    }
+
+    function showError(msg) {
+        const el = document.getElementById("error-msg");
+        el.textContent = msg;
+        el.classList.remove("hidden");
+        document.getElementById("loading").style.display = "none";
+    }
+
+    function showResult(sub) {
+        document.getElementById("loading").classList.add("hidden");
+        document.getElementById("exam-form").classList.add("hidden");
+        document.getElementById("result-view").classList.remove("hidden");
+        document.getElementById("timer").style.display = "none";
+
+        if (sub.status === "graded" || sub.score !== null) {
+            const scoreDisplay = document.getElementById("score-display");
+            document.getElementById("final-score").textContent = sub.score;
+            scoreDisplay.classList.remove("hidden");
+        }
+    }
+
+    async function submitExam() {
+        const form = document.getElementById("exam-form");
+        const formData = new FormData(form);
+        const answers = [];
+        const user = JSON.parse(localStorage.getItem("user"));
+
+        // 1. Collect Answers
+        // We need to iterate over QUESTIONS to know what to look for?
+        // Or just iterate form keys.
+        // Form keys are like "q_{questionId}".
+
+        for (const [key, value] of formData.entries()) {
+            if (key.startsWith("q_")) {
+                const questionId = key.substring(2);
+                let answerPayload = {
+                    submission_id: submissionId,
+                    question_id: questionId,
+                };
+
+                // Determine if value is option ID (UUID) or text
+                // Regex check for UUID? Or based on DOM question type?
+                // Simplest: Check if value looks like UUID (MCQ option) or not.
+                const isUUID =
+                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
+                        value,
+                    );
+
+                if (isUUID) {
+                    answerPayload.selected_option_id = value;
+                } else {
+                    answerPayload.answer_text = value;
+                }
+
+                answers.push(answerPayload);
+            }
+        }
+
+        // 2. Insert Answers
+        const { error: ansError } = await supabase
+            .from("submission_answers")
+            .insert(answers);
+
+        if (ansError) {
+            console.error(ansError);
+            alert("Error submitting answers. Please try again.");
+            return;
+        }
+
+        // 3. Auto-Grade MCQs (Optional implementation here or via Database Function / Edge Function)
+        // For MVP, we'll mark as submitted.
+        // Ideally we fetch correct options and calculate score here or serverside.
+        // Let's do a quick calculation on client for immediate feedback if safe?
+        // No, we didn't fetch correct answers. Secure way: DB trigger or server function.
+        // We will just mark submitted.
+
+        await supabase
+            .from("exam_submissions")
+            .update({
+                status: "submitted",
+                submitted_at: new Date().toISOString(),
+            })
+            .eq("id", submissionId);
+
+        showResult({ status: "submitted", score: "Pending" });
+    }
+
+    document.getElementById("exam-form").onsubmit = async (e) => {
+        e.preventDefault();
+        if (confirm("Are you sure you want to submit?")) {
+            await submitExam();
+        }
+    };
+
+    init();
 </script>
 
 <style>
     .exam-container {
         max-width: 800px;
-        margin: 2rem auto;
+        margin: 0 auto;
+        padding: 2rem;
     }
-
-    .state-card {
-        background: white;
-        padding: 3rem;
-        border-radius: 1rem;
-        border: 1px solid var(--border-color);
-        text-align: center;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-
-    .rules {
-        margin: 2rem 0;
-        text-align: left;
-        display: inline-block;
-        padding: 1.5rem;
-        background: #fdf2f2;
-        border-radius: 0.5rem;
-        color: #9b1c1c;
-    }
-
     .exam-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        border-bottom: 2px solid #f3f4f6;
+        padding-bottom: 1rem;
         margin-bottom: 2rem;
-        position: sticky;
-        top: 80px;
-        background: var(--bg-color);
-        padding: 1rem 0;
-        z-index: 10;
     }
-
     .timer {
-        font-size: 1.25rem;
-        font-weight: 700;
-        color: #ef4444;
+        font-size: 1.5rem;
+        font-family: monospace;
+        background: #fef3c7;
+        color: #d97706;
         padding: 0.5rem 1rem;
-        background: white;
-        border: 2px solid #ef4444;
-        border-radius: 0.5rem;
+        border-radius: 8px;
+        font-weight: 700;
     }
-
-    .question-card {
+    .question-block {
         background: white;
-        padding: 2rem;
-        border-radius: 0.5rem;
-        border: 1px solid var(--border-color);
-        margin-bottom: 1.5rem;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+        margin-bottom: 2rem;
+        border: 1px solid #e5e7eb;
     }
-
-    .question-text {
+    .q-header {
+        font-weight: 600;
         font-size: 1.1rem;
-        margin-bottom: 1.5rem;
+        margin-bottom: 1rem;
+        display: flex;
+        gap: 0.5rem;
     }
-
-    input[type="text"] {
+    .q-text {
+        flex: 1;
+    }
+    .q-pts {
+        color: #9ca3af;
+        font-size: 0.9rem;
+        font-weight: normal;
+    }
+    .option-label {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.75rem;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        margin-bottom: 0.5rem;
+        cursor: pointer;
+        transition: background 0.1s;
+    }
+    .option-label:hover {
+        background: #f9fafb;
+    }
+    input[type="radio"] {
+        width: 1.2rem;
+        height: 1.2rem;
+    }
+    .essay-input {
         width: 100%;
         padding: 1rem;
-        border: 2px solid #e5e7eb;
-        border-radius: 0.5rem;
-        font-size: 1rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        font-family: inherit;
     }
-
-    input[type="text"]:focus {
-        border-color: var(--primary-color);
-        outline: none;
+    .result-container {
+        text-align: center;
+        padding: 3rem;
+        background: white;
+        border-radius: 12px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
     }
-
-    .score-display {
+    .score-card {
         margin: 2rem 0;
-    }
-
-    .label {
-        font-size: 1.5rem;
-        color: #6b7280;
-    }
-
-    .score {
-        font-size: 4rem;
+        font-size: 2rem;
         font-weight: 800;
-        color: var(--primary-color);
-        display: block;
+        color: #10b981;
     }
-
-    .btn-lg {
-        padding: 1rem 2.5rem;
-        font-size: 1.1rem;
-    }
-
-    .hidden {
-        display: none;
+    .error-message {
+        color: #ef4444;
+        background: #fee2e2;
+        padding: 1rem;
+        border-radius: 6px;
+        margin-bottom: 1rem;
     }
 </style>

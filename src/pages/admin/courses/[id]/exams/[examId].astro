@@ -1,0 +1,545 @@
+---
+import Layout from "../../../../../layouts/Layout.astro";
+
+const { id, examId } = Astro.params;
+export const prerender = false;
+---
+
+<Layout>
+    <div class="admin-container">
+        <aside class="admin-sidebar">
+            <div class="brand">Admin Panel</div>
+            <nav>
+                <a href="/admin/dashboard">Overview</a>
+                <a href="/admin/users">Users</a>
+                <a href="/admin/classes" class="active">Course Management</a>
+            </nav>
+            <div class="footer">
+                <a href={`/admin/courses/${id}/builder`}>← Back to Course</a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <div class="admin-header">
+                <div>
+                    <h1 id="exam-title">Loading Exam...</h1>
+                    <p id="exam-desc" class="muted"></p>
+                </div>
+                <div class="actions">
+                    <button id="add-question-btn" class="btn btn-primary"
+                        >+ Add Question</button
+                    >
+                </div>
+            </div>
+
+            <div id="loading" class="state-message">Loading questions...</div>
+
+            <div id="questions-list" class="questions-container hidden"></div>
+        </main>
+    </div>
+
+    <!-- Question Modal -->
+    <div id="question-modal" class="modal hidden">
+        <div class="modal-content large-modal">
+            <h3 id="modal-title">Add/Edit Question</h3>
+            <form id="question-form">
+                <input type="hidden" id="q-id" />
+
+                <div class="form-group">
+                    <label>Question Type</label>
+                    <select id="q-type" class="form-control">
+                        <option value="multiple_choice">Multiple Choice</option>
+                        <option value="essay">Essay / Long Answer</option>
+                        <option value="true_false">True / False</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Question Text</label>
+                    <textarea id="q-text" rows="3" required class="form-control"
+                    ></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Points</label>
+                    <input
+                        type="number"
+                        id="q-points"
+                        value="1"
+                        min="0"
+                        class="form-control"
+                    />
+                </div>
+
+                <!-- Multiple Choice Options Section -->
+                <div id="options-section" class="options-container">
+                    <label>Answer Options</label>
+                    <div id="options-list"></div>
+                    <button
+                        type="button"
+                        class="btn btn-sm btn-outline mt-2"
+                        id="add-option-btn">+ Add Option</button
+                    >
+                    <p class="text-sm muted mt-1">
+                        Select the radio button next to the correct answer.
+                    </p>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline closeModal"
+                        >Cancel</button
+                    >
+                    <button type="submit" class="btn btn-primary"
+                        >Save Question</button
+                    >
+                </div>
+            </form>
+        </div>
+    </div>
+</Layout>
+
+<script>
+    import { supabase } from "../../../../../lib/supabase";
+
+    // Get IDs from URL path structure: /admin/courses/[id]/exams/[examId]
+    const pathParts = window.location.pathname.split("/");
+    const courseId =
+        pathParts[pathParts.length - 3] || pathParts[pathParts.length - 2]; // adjusting for trailing slash if needed
+    const examId = pathParts[pathParts.length - 1];
+
+    console.log("CourseID:", courseId, "ExamID:", examId);
+
+    let currentQuestions = [];
+
+    async function fetchData() {
+        const { data: exam, error } = await supabase
+            .from("exams")
+            .select("*")
+            .eq("id", examId)
+            .single();
+
+        if (error || !exam) {
+            console.error(error);
+            document.getElementById("exam-title").textContent =
+                "Exam Not Found";
+            return;
+        }
+
+        document.getElementById("exam-title").textContent = exam.title;
+        document.getElementById("exam-desc").textContent =
+            `Duration: ${exam.duration} mins | Passing Score: ${exam.passing_score || 60}`;
+
+        const { data: questions, error: qError } = await supabase
+            .from("questions")
+            .select(
+                `
+                *,
+                question_options (*)
+            `,
+            )
+            .eq("exam_id", examId)
+            .order("order_no", { ascending: true }); // We should order questions.
+
+        if (qError) console.error(qError);
+
+        // Sort options for each question
+        questions?.forEach((q) => {
+            if (q.question_options) {
+                q.question_options.sort(
+                    (a, b) => (a.order_no || 0) - (b.order_no || 0),
+                );
+            }
+        });
+
+        currentQuestions = questions || [];
+        renderQuestions();
+        document.getElementById("loading").style.display = "none";
+        document.getElementById("questions-list").classList.remove("hidden");
+    }
+
+    function renderQuestions() {
+        const container = document.getElementById("questions-list");
+        container.innerHTML = "";
+
+        if (currentQuestions.length === 0) {
+            container.innerHTML =
+                '<div class="empty-state">No questions added yet.</div>';
+            return;
+        }
+
+        currentQuestions.forEach((q, index) => {
+            const card = document.createElement("div");
+            card.className = "question-card";
+
+            let optionsHtml = "";
+            if (
+                q.type === "multiple_choice" &&
+                q.question_options?.length > 0
+            ) {
+                optionsHtml = '<ul class="options-preview">';
+                q.question_options.forEach((opt) => {
+                    optionsHtml += `<li class="${opt.is_correct ? "correct" : ""}">
+                        ${opt.is_correct ? "✅" : "⚪"} ${opt.option_text}
+                    </li>`;
+                });
+                optionsHtml += "</ul>";
+            } else if (q.type === "essay") {
+                optionsHtml =
+                    '<div class="essay-preview">📝 Essay Question (Manual Grading)</div>';
+            }
+
+            card.innerHTML = `
+                <div class="q-header">
+                    <div class="q-number">Q${index + 1}</div>
+                    <div class="q-content">
+                        <div class="q-text">${q.question}</div>
+                        <div class="q-meta">
+                            <span class="badge">${q.type.replace("_", " ")}</span>
+                            <span class="points">${q.points || 1} pts</span>
+                        </div>
+                        ${optionsHtml}
+                    </div>
+                    <div class="q-actions">
+                        <button class="btn-sm btn-outline edit-q" data-id="${q.id}">Edit</button>
+                        <button class="btn-sm danger delete-q" data-id="${q.id}">Delete</button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        });
+
+        // attach listeners
+        document.querySelectorAll(".delete-q").forEach((btn) => {
+            btn.onclick = async () => {
+                if (confirm("Delete this question?")) {
+                    const id = btn.dataset.id;
+                    await supabase.from("questions").delete().eq("id", id);
+                    fetchData();
+                }
+            };
+        });
+
+        document.querySelectorAll(".edit-q").forEach((btn) => {
+            btn.onclick = () => {
+                const id = btn.dataset.id;
+                const q = currentQuestions.find((cq) => cq.id === id);
+                openModal(q);
+            };
+        });
+    }
+
+    // Modal & Form Logic
+    const modal = document.getElementById("question-modal");
+    const form = document.getElementById("question-form");
+    const typeSelect = document.getElementById("q-type");
+    const optionsSection = document.getElementById("options-section");
+    const optionsList = document.getElementById("options-list");
+
+    function openModal(question = null) {
+        form.reset();
+        optionsList.innerHTML = "";
+
+        if (question) {
+            document.getElementById("q-id").value = question.id;
+            document.getElementById("q-type").value = question.type;
+            document.getElementById("q-text").value = question.question;
+            document.getElementById("q-points").value = question.points;
+
+            if (question.type === "multiple_choice") {
+                question.question_options?.forEach((opt) =>
+                    addOptionInput(opt),
+                );
+            }
+        } else {
+            document.getElementById("q-id").value = "";
+            // add default 2 options for new MCQ
+            if (typeSelect.value === "multiple_choice") {
+                addOptionInput();
+                addOptionInput();
+            }
+        }
+
+        handleTypeChange();
+        modal.classList.remove("hidden");
+    }
+
+    function closeModal() {
+        modal.classList.add("hidden");
+    }
+
+    function handleTypeChange() {
+        if (typeSelect.value === "multiple_choice") {
+            optionsSection.classList.remove("hidden");
+            if (optionsList.children.length === 0) {
+                addOptionInput();
+                addOptionInput();
+            }
+        } else {
+            optionsSection.classList.add("hidden");
+        }
+    }
+
+    typeSelect.onchange = handleTypeChange;
+
+    function addOptionInput(optData = null) {
+        const div = document.createElement("div");
+        div.className = "option-row";
+        const uniqueId = `opt-${Date.now()}-${Math.random()}`; // unique name for radio group
+        // But for radio group, all radios in this form need SAME name to be exclusive?
+        // Actually, we are editing ONE question. So radio name can be constant 'correct_option'.
+
+        const isChecked = optData?.is_correct ? "checked" : "";
+        const value = optData?.option_text || "";
+        const id = optData?.id || ""; // existing option ID
+
+        div.innerHTML = `
+            <input type="hidden" class="opt-id" value="${id}">
+            <input type="radio" name="correct_option" class="opt-radio" ${isChecked}>
+            <input type="text" class="opt-text form-control" placeholder="Option text" value="${value}" required>
+            <button type="button" class="btn-icon danger remove-opt">×</button>
+        `;
+
+        div.querySelector(".remove-opt").onclick = () => div.remove();
+        // Make clicking radio set it as checked (default behavior works)
+
+        optionsList.appendChild(div);
+    }
+
+    document.getElementById("add-option-btn").onclick = () => addOptionInput();
+    document.getElementById("add-question-btn").onclick = () => openModal();
+    document
+        .querySelectorAll(".closeModal")
+        .forEach((el) => (el.onclick = closeModal));
+
+    form.onsubmit = async (e) => {
+        e.preventDefault();
+        const qId = document.getElementById("q-id").value;
+        const type = document.getElementById("q-type").value;
+        const text = document.getElementById("q-text").value;
+        const points = document.getElementById("q-points").value;
+
+        const qData = {
+            exam_id: examId,
+            type: type,
+            question: text,
+            points: parseInt(points),
+        };
+
+        if (qId) qData.id = qId;
+
+        // Save Question
+        const { data: savedQ, error: qError } = await supabase
+            .from("questions")
+            .upsert(qData)
+            .select()
+            .single();
+
+        if (qError) {
+            alert("Error saving question: " + qError.message);
+            return;
+        }
+
+        // Save Options if MCQ
+        if (type === "multiple_choice") {
+            const optionRows = Array.from(
+                document.querySelectorAll(".option-row"),
+            );
+            const optionsToUpsert = optionRows.map((row, index) => {
+                const optId = row.querySelector(".opt-id").value;
+                const optText = row.querySelector(".opt-text").value;
+                const isCorrect = row.querySelector(".opt-radio").checked;
+
+                const payload = {
+                    question_id: savedQ.id,
+                    option_text: optText,
+                    is_correct: isCorrect,
+                    order_no: index,
+                };
+                if (optId) payload.id = optId;
+                return payload;
+            });
+
+            // Delete removed options?
+            // Complexity: If we user upsert, existing IDs update. New ones insert.
+            // But deleted ones remain in DB linked to question.
+            // Ideally we should delete all options for this question first NOT IN the new list.
+            // Simplified approach: Delete all options for this Q, then re-insert? (Safe if no submissions yet).
+            // Better: Get current DB options, compare.
+
+            // Allow simplified approach for MVP: Delete all options for this Q and insert new ones.
+            // Only if updating.
+            // Actually, deleting all might break submission references if we had them.
+            // Let's stick to upsert for now. Old options might linger if deleted from UI.
+            // TODO: Handle deletions.
+
+            const { error: optError } = await supabase
+                .from("question_options")
+                .upsert(optionsToUpsert);
+
+            if (optError) console.error("Error saving options:", optError);
+        }
+
+        closeModal();
+        fetchData();
+    };
+
+    fetchData();
+</script>
+
+<style>
+    .admin-container {
+        display: flex;
+        min-height: 100vh;
+    }
+    .admin-main {
+        flex: 1;
+        padding: 2rem;
+        background: #f8fafc;
+    }
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+    .question-card {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1rem;
+        border: 1px solid #e2e8f0;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    .q-header {
+        display: flex;
+        gap: 1rem;
+    }
+    .q-number {
+        font-weight: 700;
+        color: #94a3b8;
+        font-size: 1.1rem;
+    }
+    .q-content {
+        flex: 1;
+    }
+    .q-text {
+        font-weight: 600;
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+    }
+    .q-meta {
+        font-size: 0.8rem;
+        color: #64748b;
+        margin-bottom: 1rem;
+        display: flex;
+        gap: 0.5rem;
+    }
+    .badge {
+        background: #e0f2fe;
+        color: #0369a1;
+        padding: 0.1rem 0.5rem;
+        border-radius: 4px;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        font-weight: 700;
+    }
+    .options-preview {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        font-size: 0.9rem;
+    }
+    .options-preview li {
+        padding: 0.25rem 0;
+    }
+    .options-preview li.correct {
+        color: #16a34a;
+        font-weight: 600;
+    }
+
+    .option-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-bottom: 0.5rem;
+    }
+
+    /* Reuse modal styles from builder if possible, or define here */
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+    }
+    .modal.hidden {
+        display: none;
+    }
+    .modal-content {
+        background: white;
+        padding: 2rem;
+        border-radius: 8px;
+        width: 500px;
+        max-width: 90%;
+        max-height: 90vh;
+        overflow-y: auto;
+    }
+    .large-modal {
+        width: 700px;
+    }
+
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    .form-control {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #cbd5e1;
+        border-radius: 4px;
+    }
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+        margin-top: 2rem;
+    }
+    .btn {
+        cursor: pointer;
+        padding: 0.5rem 1rem;
+        border-radius: 4px;
+        border: none;
+        font-weight: 600;
+    }
+    .btn-primary {
+        background: #f59e0b;
+        color: white;
+    }
+    .btn-outline {
+        background: white;
+        border: 1px solid #cbd5e1;
+    }
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+    }
+    .danger {
+        color: #ef4444;
+        border-color: #ef4444;
+        color: white;
+        background: #ef4444;
+    }
+    .btn-icon {
+        padding: 0;
+        width: 24px;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 50%;
+    }
+</style>

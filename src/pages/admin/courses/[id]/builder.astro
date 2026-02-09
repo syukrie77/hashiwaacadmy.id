@@ -514,7 +514,10 @@ export const prerender = false;
                     <h4>${ex.title}</h4>
                     <span class="muted">Duration: ${ex.duration} mins</span>
                 </div>
-                <button class="btn-sm danger delete-ex" data-id="${ex.id}">Delete</button>
+                <div class="actions">
+                    <a href="/admin/courses/${courseId}/exams/${ex.id}" class="btn-sm btn-outline">Edit Questions</a>
+                    <button class="btn-sm danger delete-ex" data-id="${ex.id}">Delete</button>
+                </div>
             </div>
         `,
                 )

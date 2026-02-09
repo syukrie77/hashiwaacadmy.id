@@ -49,6 +49,12 @@ if (modulesError) {
     console.error("Error fetching modules:", modulesError);
 }
 
+// Fetch Exams
+const { data: courseExams, error: examsError } = await supabase
+    .from("exams")
+    .select("*")
+    .eq("class_id", id);
+
 // Prepare modules list
 const courseModules = sortedCourseModules || [];
 ---
@@ -219,35 +225,60 @@ const courseModules = sortedCourseModules || [];
             </div>
         </div>
 
-        <div class="main-content">
-            <div class="placeholder-viewer">
-                <h2>Select a lesson to start</h2>
-                <p>Your learning journey begins here.</p>
-            </div>
-        </div>
+        <!-- Exams Section -->
+        {
+            courseExams && courseExams.length > 0 && (
+                <div class="exams-section">
+                    <h3>Exams</h3>
+                    <ul class="materials-list">
+                        {courseExams.map((exam: any) => (
+                            <li class="exam-item-link">
+                                <a
+                                    href={`/courses/${id}/exams/${exam.id}`}
+                                    class="exam-link"
+                                >
+                                    <span class="material-type">📝</span>
+                                    <span class="material-title">
+                                        {exam.title}
+                                    </span>
+                                    <span class="duration">
+                                        {exam.duration} min
+                                    </span>
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )
+        }
     </div>
 
-    <!-- Enrollment Modal -->
-    <div id="enroll-modal" class="modal hidden">
-        <div class="modal-content">
-            <h3>Unlock Module</h3>
-            <p>
-                You are about to unlock: <strong id="modal-mod-title"></strong>
-            </p>
-            <p class="price-display">
-                Price: <span id="modal-mod-price"></span>
-            </p>
-            <div class="modal-actions">
-                <button id="cancel-enroll" class="btn btn-outline"
-                    >Cancel</button
-                >
-                <button id="confirm-enroll" class="btn btn-primary"
-                    >Pay & Unlock</button
-                >
-            </div>
+    <div class="main-content">
+        <div class="placeholder-viewer">
+            <h2>Select a lesson to start</h2>
+            <p>Your learning journey begins here.</p>
         </div>
     </div>
 </Layout>
+
+<!-- Enrollment Modal -->
+<div id="enroll-modal" class="modal hidden">
+    <div class="modal-content">
+        <h3>Unlock Module</h3>
+        <p>
+            You are about to unlock: <strong id="modal-mod-title"></strong>
+        </p>
+        <p class="price-display">
+            Price: <span id="modal-mod-price"></span>
+        </p>
+        <div class="modal-actions">
+            <button id="cancel-enroll" class="btn btn-outline">Cancel</button>
+            <button id="confirm-enroll" class="btn btn-primary"
+                >Pay & Unlock</button
+            >
+        </div>
+    </div>
+</div>
 
 <script>
     import { supabase } from "../../lib/supabase";
@@ -798,6 +829,37 @@ const courseModules = sortedCourseModules || [];
         color: #10b981;
     }
     .materials-list li.disabled {
+        opacity: 0.6;
+        pointer-events: none;
+        background: #f3f4f6;
+    }
+    
+    .exams-section {
+        margin-top: 2rem;
+        border-top: 1px solid var(--border-color);
+        padding-top: 1rem;
+    }
+    
+    .exam-link {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        width: 100%;
+        text-decoration: none;
+        color: inherit;
+    }
+    
+    .exam-item-link {
+         padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f3f4f6;
+        display: flex;
+        align-items: center;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+    .exam-item-link:hover {
+        background-color: #f0fdf4;
+    }
         opacity: 0.5;
         pointer-events: none;
         background: #f3f4f6;
