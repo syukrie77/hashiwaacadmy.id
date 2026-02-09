@@ -39,6 +39,7 @@
 		</main>
 		<script>
 			const userStr = localStorage.getItem("user");
+			console.log("Layout.astro loaded with Gold Theme");
 			const authContainer = document.getElementById("nav-auth-buttons");
 			const navLinks = document.querySelector(".nav-links");
 			const navContainer = document.querySelector(".nav-container");
@@ -90,7 +91,7 @@
 		--primary-color: #f59e0b;
 		--primary-hover: #d97706;
 		--text-color: #1f2937;
-		--bg-color: #fffbeb;
+		--bg-color: #f9fafb;
 		--card-bg: #ffffff;
 		--border-color: #e7e5e4;
 	}
@@ -103,10 +104,14 @@
 		background-color: var(--bg-color);
 		color: var(--text-color);
 		height: 100%;
+		background-image: radial-gradient(#e5e7eb 1px, transparent 1px);
+		background-size: 24px 24px;
 	}
 
 	header {
-		background-color: var(--card-bg);
+		background-color: rgba(255, 255, 255, 0.8);
+		backdrop-filter: blur(12px);
+		-webkit-backdrop-filter: blur(12px);
 		border-bottom: 1px solid var(--border-color);
 		padding: 1rem 2rem;
 		position: sticky;

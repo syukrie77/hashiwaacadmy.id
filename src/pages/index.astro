@@ -15,23 +15,63 @@ if (error) {
 ---
 
 <Layout>
-	<section class="hero">
-		<h1>Welcome to Hashiwa E-Learning</h1>
-		<p>Discover courses and learn at your own pace.</p>
+	<!-- Hero Section -->
+	<section class="hero-section">
+		<div class="hero-content">
+			<span class="badge-accent">Japanese Learning Center</span>
+			<h1>
+				Dari kelas ke karier,<br /><span class="text-primary"
+					>Lokal ke Global.</span>
+			</h1>
+			<p>
+				Hashiwa Japanese Academy adalah pusat studi bahasa Jepang untuk
+				kamu yang siap melangkah lebih jauh. Daftar sekarang dan kuasai
+				Jepang bersama kami.
+			</p>
+			<div class="hero-actions">
+				<a href="/register" class="btn btn-primary btn-lg"
+					>Daftar Sekarang</a
+				>
+				<a href="#courses" class="btn btn-outline btn-lg"
+					>Lihat Program</a
+				>
+			</div>
+		</div>
+		<div class="hero-image">
+			<div class="image-placeholder">
+				<!-- In regular app, this would be an image of students or Japanese landscape -->
+				<div class="floating-card">
+					<span class="dot"></span>
+					<span>Top Quality Courses</span>
+				</div>
+			</div>
+		</div>
 	</section>
 
-	<section class="courses-section">
-		<h2>Available Courses</h2>
+	<!-- Program Section -->
+	<section id="courses" class="courses-section">
+		<div class="section-header">
+			<div>
+				<span class="badge-accent">Top Quality Courses</span>
+				<h2>Program Unggulan</h2>
+			</div>
+			<a href="/courses" class="link-more">Lihat Semua →</a>
+		</div>
+
 		{
 			(!classes || classes.length === 0) && (
-				<p>No courses available at the moment.</p>
+				<div class="empty-state">
+					<p>No courses available at the moment.</p>
+				</div>
 			)
 		}
+
 		{
 			classes && classes.length > 0 && (
 				<div class="course-grid">
 					{classes.map((course) => (
 						<div class="course-card">
+							<div class="course-badge">Course</div>
 							<div class="course-content">
 								<h3>{course.title}</h3>
 								<p class="description">{course.description}</p>
@@ -45,7 +85,7 @@ if (error) {
 										href={`/courses/${course.id}`}
 										class="btn btn-sm btn-primary"
 									>
-										View Course
+										Lihat Program
 									</a>
 								</div>
 							</div>
@@ -55,139 +95,259 @@ if (error) {
 			)
 		}
 	</section>
+
+	<!-- Call to Action Section -->
+	<section class="cta-section">
+		<div class="cta-card">
+			<h2>Siap Melangkah Ke Jepang?</h2>
+			<p>
+				Bergabunglah dengan ratusan alumni kami yang telah sukses
+				berkarier di Negeri Sakura.
+			</p>
+			<a href="/contact" class="btn btn-dark btn-lg">Hubungi Konsultan</a>
+		</div>
+	</section>
 </Layout>
 
-<script>
-	import { supabase } from "../lib/supabase";
-
-	async function init() {
-		const userStr = localStorage.getItem("user");
-		if (!userStr) return;
-
-		const user = JSON.parse(userStr);
-		const { data: enrollments } = await supabase
-			.from("enrollments")
-			.select("class_id")
-			.eq("user_id", user.id)
-			.returns<{ class_id: string }[]>();
-
-		if (!enrollments) return;
-
-		const enrolledIds = new Set(enrollments.map((e) => e.class_id));
-		const courseCards = document.querySelectorAll(".course-card");
-
-		courseCards.forEach((card) => {
-			const viewBtn = card.querySelector("a.btn") as HTMLAnchorElement;
-			const courseId = viewBtn?.href.split("/").pop();
-
-			if (courseId && enrolledIds.has(courseId)) {
-				viewBtn.textContent = "Continue Learning";
-				viewBtn.classList.add("btn-success");
-				viewBtn.classList.remove("btn-primary");
-			}
-		});
-	}
-
-	init();
-	document.addEventListener("astro:after-swap", init);
-</script>
-
 <style>
-	.btn-success {
-		background-color: #10b981;
-		color: white;
-		border-color: #10b981;
-	}
-	.btn-success:hover {
-		background-color: #059669;
-	}
-	/* Existing styles... */
-	.hero {
-		text-align: center;
-		padding: 4rem 2rem;
-		background: linear-gradient(135deg, #f59e0b 0%, #fcd34d 100%);
-		border-radius: 1rem;
-		color: #1f2937;
-		margin-bottom: 3rem;
-		box-shadow:
-			0 4px 6px -1px rgba(245, 158, 11, 0.1),
-			0 2px 4px -1px rgba(245, 158, 11, 0.06);
+	/* Hero Styles */
+	.hero-section {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		align-items: center;
+		gap: 4rem;
+		padding: 4rem 0;
+		margin-bottom: 4rem;
 	}
 
-	.hero h1 {
-		font-size: 3rem;
-		margin-bottom: 1rem;
-		line-height: 1.2;
+	.hero-content h1 {
+		font-size: 3.5rem;
+		font-weight: 800;
+		line-height: 1.1;
+		margin: 1rem 0 1.5rem;
+		color: #111827;
 	}
 
-	.hero p {
+	.text-primary {
+		color: var(--primary-color);
+	}
+
+	.hero-content p {
 		font-size: 1.25rem;
-		opacity: 0.9;
-		max-width: 600px;
-		margin: 0 auto;
+		color: #4b5563;
+		margin-bottom: 2.5rem;
+		max-width: 500px;
+		line-height: 1.6;
 	}
 
-	@media (max-width: 768px) {
-		.hero {
-			padding: 3rem 1.5rem;
-		}
-		.hero h1 {
-			font-size: 2rem;
-		}
-		.hero p {
-			font-size: 1rem;
-		}
+	.badge-accent {
+		color: #92400e;
+		background: #fef3c7;
+		padding: 0.25rem 0.75rem;
+		border-radius: 999px;
+		font-size: 0.875rem;
+		font-weight: 700;
+		display: inline-block;
+	}
 
-		.course-grid {
-			grid-template-columns: 1fr;
-		}
+	.hero-actions {
+		display: flex;
+		gap: 1rem;
+	}
+
+	.btn-lg {
+		padding: 0.75rem 2rem;
+		font-size: 1.1rem;
+	}
+
+	.hero-image {
+		position: relative;
+	}
+
+	.image-placeholder {
+		aspect-ratio: 4/3;
+		background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+		border-radius: 2rem;
+		position: relative;
+		overflow: hidden;
+	}
+
+	.floating-card {
+		position: absolute;
+		bottom: 2rem;
+		left: 2rem;
+		background: white;
+		padding: 1rem 1.5rem;
+		border-radius: 1rem;
+		box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+		display: flex;
+		align-items: center;
+		gap: 0.75rem;
+		font-weight: 700;
+	}
+
+	.floating-card .dot {
+		width: 10px;
+		height: 10px;
+		background: #10b981;
+		border-radius: 50%;
+	}
+
+	/* Section Header */
+	.section-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-end;
+		margin-bottom: 3rem;
+	}
+
+	.section-header h2 {
+		font-size: 2.25rem;
+		font-weight: 800;
+		margin-top: 0.5rem;
+	}
+
+	.link-more {
+		color: var(--primary-color);
+		text-decoration: none;
+		font-weight: 700;
+	}
+
+	/* Course Grid */
+	.course-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+		gap: 2rem;
 	}
 
 	.course-card {
-		background: var(--card-bg);
+		background: white;
 		border: 1px solid var(--border-color);
-		border-radius: 0.5rem;
+		border-radius: 1.5rem;
 		overflow: hidden;
-		transition: box-shadow 0.2s;
+		transition: all 0.3s ease;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.course-card:hover {
-		box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+		transform: translateY(-5px);
+		box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+		border-color: var(--primary-color);
+	}
+
+	.course-badge {
+		padding: 1rem 1.5rem 0;
+		font-size: 0.75rem;
+		font-weight: 800;
+		text-transform: uppercase;
+		color: #6b7280;
+		letter-spacing: 0.05em;
 	}
 
 	.course-content {
-		padding: 1.5rem;
+		padding: 0.5rem 1.5rem 1.5rem;
+		flex: 1;
+		display: flex;
+		flex-direction: column;
 	}
 
 	.course-content h3 {
-		margin-top: 0;
+		margin: 0.5rem 0;
 		font-size: 1.25rem;
+		font-weight: 700;
 	}
 
 	.description {
 		color: #6b7280;
-		display: -webkit-box;
-		-webkit-line-clamp: 3;
-		-webkit-box-orient: vertical;
-		overflow: hidden;
-		min-height: 4.5em;
+		font-size: 0.95rem;
+		line-height: 1.5;
+		margin-bottom: 1.5rem;
+		flex: 1;
 	}
 
 	.footer {
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		margin-top: 1.5rem;
+		padding-top: 1rem;
+		border-top: 1px solid #f3f4f6;
 	}
 
 	.price {
-		font-weight: 700;
-		font-size: 1.1rem;
-		color: var(--primary-color);
+		font-weight: 800;
+		color: #111827;
 	}
 
-	.btn-sm {
-		padding: 0.25rem 0.75rem;
-		font-size: 0.875rem;
+	/* CTA Section */
+	.cta-section {
+		margin: 4rem 0;
+	}
+
+	.cta-card {
+		background: #111827;
+		padding: 4rem;
+		border-radius: 2rem;
+		color: white;
+		text-align: center;
+	}
+
+	.cta-card h2 {
+		font-size: 2.5rem;
+		font-weight: 800;
+		marginbottom: 1rem;
+	}
+
+	.cta-card p {
+		font-size: 1.25rem;
+		opacity: 0.8;
+		margin-bottom: 2.5rem;
+	}
+
+	.btn-dark {
+		background: white;
+		color: #111827;
+		border: none;
+	}
+
+	.btn-dark:hover {
+		background: var(--primary-color);
+		color: white;
+	}
+
+	/* Responsive */
+	@media (max-width: 768px) {
+		.hero-section {
+			grid-template-columns: 1fr;
+			text-align: center;
+			gap: 2rem;
+		}
+
+		.hero-content h1 {
+			font-size: 2.5rem;
+		}
+
+		.hero-content p {
+			margin: 0 auto 2rem;
+		}
+
+		.hero-actions {
+			justify-content: center;
+		}
+
+		.hero-image {
+			order: -1;
+		}
+
+		.section-header {
+			flex-direction: column;
+			align-items: center;
+			text-align: center;
+			gap: 1rem;
+		}
+
+		.cta-card {
+			padding: 2rem 1.5rem;
+		}
 	}
 </style>
