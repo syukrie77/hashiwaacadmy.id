@@ -45,6 +45,7 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
     import { supabase } from "../lib/supabase";
+    import bcrypt from "bcryptjs";
 
     const form = document.getElementById("login-form");
 
@@ -54,32 +55,40 @@ import Layout from "../layouts/Layout.astro";
         const email = formData.get("email") as string;
         const password = formData.get("password") as string;
 
-        // NOTE: This implementation assumes Custom Auth logic interacting with public.users
-        // In a real production app using Supabase, you should use supabase.auth.signInWithPassword()
-        // and rely on Supabase Auth's user management, or implement a server-side API endpoint
-        // to verify credentials against the hashed password in 'public.users'.
-        //
-        // For demonstration purposes, we will try to find the user (INSECURE for production if passwords aren't hashed properly).
-
         try {
-            const { data, error } = await supabase
+            // Cari user di tabel users berdasarkan email
+            const { data: user, error } = await supabase
                 .from("users")
-                .select("*")
+                .select("id, name, role, email, password")
                 .eq("email", email)
-                .eq("password", password) // WARNING: Plaintext password check! Only for demo if no hashing lib is used.
-                .single();
+                .maybeSingle();
 
-            if (error || !data) {
-                alert("Invalid credentials");
-            } else {
-                alert("Login success! Welcome " + data.name);
-                // Save user to local storage or cookie
-                localStorage.setItem("user", JSON.stringify(data));
-                window.location.href = "/dashboard";
+            if (error || !user) {
+                alert("Email atau password salah");
+                return;
             }
+
+            // Verifikasi password menggunakan bcrypt
+            const passwordMatch = await bcrypt.compare(password, user.password);
+            if (!passwordMatch) {
+                alert("Email atau password salah");
+                return;
+            }
+
+            // Simpan user ke localStorage tanpa password
+            const userData = {
+                id: user.id,
+                name: user.name,
+                role: user.role,
+                email: user.email
+            };
+
+            localStorage.setItem("user", JSON.stringify(userData));
+            alert("Login success! Welcome " + user.name);
+            window.location.href = "/dashboard";
         } catch (err) {
             console.error(err);
-            alert("An error occurred");
+            alert("Terjadi kesalahan");
         }
     });
 </script>

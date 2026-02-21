@@ -1,0 +1,804 @@
+---
+import Layout from "../../../../layouts/Layout.astro";
+const { id } = Astro.params;
+export const prerender = false;
+---
+
+<Layout>
+    <div class="lms-container">
+        <!-- Header Section -->
+        <div id="course-header" class="header-card">
+            <div class="header-main">
+                <div class="course-badge" id="header-code">CODE</div>
+                <div class="course-info">
+                    <h1 id="header-title">Loading Course...</h1>
+                    <p id="header-details" class="muted">
+                        Instructor: - | Hari: - | Waktu: - | Ruang: -
+                    </p>
+                </div>
+            </div>
+            <div class="header-stats">
+                <div class="stat-item clickable" id="btn-students-present">
+                    <span class="stat-label">Siswa Hadir</span>
+                    <span class="stat-value" id="stat-present">0</span>
+                </div>
+                <div class="stat-item clickable" id="btn-students-rare">
+                    <span class="stat-label">Jarang Hadir</span>
+                    <span class="stat-value warning" id="stat-rare">0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="dashboard-grid">
+            <!-- Sidebar / Session List -->
+            <aside class="session-nav">
+                <h3>Pertemuan</h3>
+                <div id="session-buttons" class="session-list">
+                    <!-- JS Injected Buttons -->
+                </div>
+                <button
+                    id="add-session-btn"
+                    class="btn btn-outline full-width hidden"
+                    >+ Tambah Pertemuan</button
+                >
+            </aside>
+
+            <!-- Active Session Details -->
+            <main class="content-area">
+                <div id="loading" class="state-message">
+                    Memuat data pertemuan...
+                </div>
+
+                <div id="session-content" class="hidden">
+                    <div class="section-card">
+                        <div class="section-header">
+                            <h2>Rencana Kegiatan</h2>
+                            <button
+                                class="btn-sm btn-outline"
+                                id="edit-plan-btn">Edit Rencana</button
+                            >
+                        </div>
+                        <table class="metadata-table">
+                            <tbody id="plan-table-body">
+                                <!-- JS Injected -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div class="activities-grid">
+                        <div class="section-card">
+                            <div class="section-header">
+                                <h3>Forum</h3>
+                                <button
+                                    class="btn-sm btn-primary"
+                                    id="add-forum-btn">+</button
+                                >
+                            </div>
+                            <div id="forum-list" class="activity-list"></div>
+                        </div>
+                        <div class="section-card">
+                            <div class="section-header">
+                                <h3>Tugas</h3>
+                                <button
+                                    class="btn-sm btn-primary"
+                                    id="add-assignment-btn">+</button
+                                >
+                            </div>
+                            <div id="assignment-list" class="activity-list">
+                            </div>
+                        </div>
+                        <div class="section-card">
+                            <div class="section-header">
+                                <h3>Kuis</h3>
+                                <button
+                                    class="btn-sm btn-primary"
+                                    id="add-quiz-btn">+</button
+                                >
+                            </div>
+                            <div id="quiz-list" class="activity-list"></div>
+                        </div>
+                        <div class="section-card">
+                            <div class="section-header">
+                                <h3>Presentasi</h3>
+                                <button
+                                    class="btn-sm btn-primary"
+                                    id="add-pres-btn">+</button
+                                >
+                            </div>
+                            <div id="pres-list" class="activity-list"></div>
+                        </div>
+                    </div>
+
+                    <!-- Attendance Section -->
+                    <div class="section-card mt-2">
+                        <div class="section-header">
+                            <h2>Presensi Siswa</h2>
+                            <div class="actions">
+                                <span class="muted mr-1">Tandai semua:</span>
+                                <button class="btn-xs" onclick="markAll('H')"
+                                    >H</button
+                                >
+                                <button
+                                    class="btn-sm btn-primary ml-1"
+                                    id="save-attendance-btn"
+                                    >Simpan Presensi</button
+                                >
+                            </div>
+                        </div>
+                        <div class="table-container">
+                            <table class="lms-table">
+                                <thead>
+                                    <tr>
+                                        <th>No</th>
+                                        <th>NIS</th>
+                                        <th>Nama Siswa</th>
+                                        <th>Status Presensi</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="attendance-table-body">
+                                    <!-- JS Injected -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modals -->
+    <!-- Plan Modal -->
+    <div id="plan-modal" class="modal hidden">
+        <div class="modal-content large">
+            <h3>Edit Rencana Kegiatan</h3>
+            <form id="plan-form" class="grid-form">
+                <div class="form-group">
+                    <label>Jenis Pertemuan</label>
+                    <input
+                        type="text"
+                        name="meeting_type"
+                        placeholder="e.g. Tatap Muka"
+                    />
+                </div>
+                <div class="form-group">
+                    <label>Metode Pembelajaran</label>
+                    <input
+                        type="text"
+                        name="method"
+                        placeholder="e.g. Ceramah & Diskusi"
+                    />
+                </div>
+                <div class="form-group">
+                    <label>Link Vicon</label>
+                    <input
+                        type="text"
+                        name="vicon_link"
+                        placeholder="https://zoom.us/..."
+                    />
+                </div>
+                <div class="form-group">
+                    <label>Bahan Ajar</label>
+                    <input
+                        type="text"
+                        name="teaching_materials"
+                        placeholder="Link Materi / Buku"
+                    />
+                </div>
+                <div class="form-group full-width">
+                    <label>Rencana Materi</label>
+                    <textarea name="material_plan" rows="3"></textarea>
+                </div>
+                <div class="form-group full-width">
+                    <label>Realisasi Materi</label>
+                    <textarea name="material_realization" rows="3"></textarea>
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline closeModal"
+                        >Batal</button
+                    >
+                    <button type="submit" class="btn btn-primary"
+                        >Simpan Rencana</button
+                    >
+                </div>
+            </form>
+        </div>
+    </div>
+</Layout>
+
+<script>
+    import { supabase } from "../../../../lib/supabase";
+
+    // Path analysis
+    const pathParts = window.location.pathname.split("/");
+    const classId = pathParts[pathParts.length - 1]; // /instructor/courses/[id]
+
+    let currentSessionId = null;
+    let students = [];
+    let sessions = [];
+
+    async function init() {
+        const userStr = localStorage.getItem("user");
+        if (!userStr) {
+            window.location.href = "/login";
+            return;
+        }
+        const user = JSON.parse(userStr);
+
+        // UI Restriction: Only Admin can add sessions
+        if (user.role === "admin") {
+            document
+                .getElementById("add-session-btn")
+                ?.classList.remove("hidden");
+        }
+
+        await fetchCourseData();
+        await fetchSessions();
+        await fetchStudents();
+
+        if (sessions.length > 0) {
+            loadSession(sessions[0].id);
+        } else {
+            document.getElementById("loading").textContent =
+                "Belum ada pertemuan. " +
+                (user.role === "admin"
+                    ? "Klik '+ Tambah Pertemuan'."
+                    : "Silakan hubungi Admin.");
+        }
+    }
+
+    async function fetchCourseData() {
+        const { data: course, error } = await supabase
+            .from("classes")
+            .select("*, users!classes_owner_id_fkey(name)")
+            .eq("id", classId)
+            .single();
+
+        if (error || !course) return;
+
+        document.getElementById("header-title").textContent = course.title;
+        document.getElementById("header-code").textContent =
+            course.course_code || "N/A";
+        document.getElementById("header-details").textContent =
+            `Instructor: ${course.users?.name || "-"} | Hari: ${course.study_day || "-"} | Waktu: ${course.study_time || "-"} | Ruang: ${course.room_name || "-"}`;
+    }
+
+    async function fetchSessions() {
+        const { data, error } = await supabase
+            .from("course_sessions")
+            .select("*")
+            .eq("class_id", classId)
+            .order("session_no", { ascending: true });
+
+        if (error) return;
+        sessions = data;
+        renderSessionNav();
+    }
+
+    async function fetchStudents() {
+        // Fetch from enrollments
+        const { data, error } = await supabase
+            .from("enrollments")
+            .select("profiles:user_id(id, name, avatar), user_id")
+            .eq("class_id", classId);
+
+        if (error) return;
+        // Map to a cleaner structure
+        students = data.map((d) => ({
+            id: d.user_id,
+            name: d.profiles?.name || "Student",
+            nis: "2024" + d.user_id.slice(0, 4), // Dummy NIS
+        }));
+    }
+
+    function renderSessionNav() {
+        const container = document.getElementById("session-buttons");
+        container.innerHTML = "";
+        sessions.forEach((s) => {
+            const btn = document.createElement("button");
+            btn.className = `session-btn ${currentSessionId === s.id ? "active" : ""}`;
+            btn.textContent = `Pertemuan ${s.session_no}`;
+            btn.onclick = () => loadSession(s.id);
+            container.appendChild(btn);
+        });
+    }
+
+    async function loadSession(sid) {
+        currentSessionId = sid;
+        renderSessionNav();
+        document.getElementById("loading").classList.remove("hidden");
+        document.getElementById("session-content").classList.add("hidden");
+
+        const session = sessions.find((s) => s.id === sid);
+        if (!session) return;
+
+        // Render Plan
+        const planBody = document.getElementById("plan-table-body");
+        const rows = [
+            ["Pertemuan", `Ke-${session.session_no}`],
+            [
+                "Instruktur",
+                document
+                    .getElementById("header-details")
+                    .textContent.split("|")[0]
+                    .replace("Instructor:", "")
+                    .trim(),
+            ],
+            ["Jenis Pertemuan", session.meeting_type || "-"],
+            ["Metode Pembelajaran", session.method || "-"],
+            [
+                "Link Vicon",
+                session.vicon_link
+                    ? `<a href="${session.vicon_link}" target="_blank">Buka Link</a>`
+                    : "-",
+            ],
+            ["Bahan Ajar", session.teaching_materials || "-"],
+            ["Rencana Materi", session.material_plan || "-"],
+            ["Realisasi Materi", session.material_realization || "-"],
+        ];
+        planBody.innerHTML = rows
+            .map(
+                (r) =>
+                    `<tr><td><strong>${r[0]}</strong></td><td>${r[1]}</td></tr>`,
+            )
+            .join("");
+
+        // Fetch Attendance for this session
+        const { data: attData } = await supabase
+            .from("attendance_records")
+            .select("*")
+            .eq("session_id", sid);
+
+        const attMap = {};
+        attData?.forEach((a) => (attMap[a.student_id] = a.status));
+
+        // Render Attendance Table
+        const attBody = document.getElementById("attendance-table-body");
+        attBody.innerHTML = students
+            .map(
+                (s, i) => `
+            <tr>
+                <td>${i + 1}</td>
+                <td>${s.nis}</td>
+                <td>${s.name}</td>
+                <td class="status-options">
+                    <label class="radio-label ${attMap[s.id] === "H" ? "active" : ""}"><input type="radio" name="att_${s.id}" value="H" ${attMap[s.id] === "H" ? "checked" : ""}> H</label>
+                    <label class="radio-label ${attMap[s.id] === "A" ? "active" : ""}"><input type="radio" name="att_${s.id}" value="A" ${attMap[s.id] === "A" ? "checked" : ""}> A</label>
+                    <label class="radio-label ${attMap[s.id] === "I" ? "active" : ""}"><input type="radio" name="att_${s.id}" value="I" ${attMap[s.id] === "I" ? "checked" : ""}> I</label>
+                    <label class="radio-label ${attMap[s.id] === "S" ? "active" : ""}"><input type="radio" name="att_${s.id}" value="S" ${attMap[s.id] === "S" ? "checked" : ""}> S</label>
+                </td>
+            </tr>
+        `,
+            )
+            .join("");
+
+        // Calculate Header Stats (Mock/Simple)
+        const totalHadir = attData?.filter((a) => a.status === "H").length || 0;
+        document.getElementById("stat-present").textContent = totalHadir;
+
+        document.getElementById("loading").classList.add("hidden");
+        document.getElementById("session-content").classList.remove("hidden");
+    }
+
+    // Modal Interaction
+    const closeM = () =>
+        document
+            .querySelectorAll(".modal")
+            .forEach((m) => m.classList.add("hidden"));
+    document
+        .querySelectorAll(".closeModal")
+        .forEach((b) => (b.onclick = closeM));
+
+    document.getElementById("edit-plan-btn").onclick = () => {
+        const session = sessions.find((s) => s.id === currentSessionId);
+        if (!session) return;
+        const form = document.getElementById("plan-form");
+        form.meeting_type.value = session.meeting_type || "";
+        form.method.value = session.method || "";
+        form.vicon_link.value = session.vicon_link || "";
+        form.teaching_materials.value = session.teaching_materials || "";
+        form.material_plan.value = session.material_plan || "";
+        form.material_realization.value = session.material_realization || "";
+        document.getElementById("plan-modal").classList.remove("hidden");
+    };
+
+    document.getElementById("plan-form").onsubmit = async (e) => {
+        e.preventDefault();
+        const fd = new FormData(e.target);
+        const data = Object.fromEntries(fd.entries());
+
+        const { error } = await supabase
+            .from("course_sessions")
+            .update(data)
+            .eq("id", currentSessionId);
+
+        if (error) {
+            alert("Gagal update rencana");
+            return;
+        }
+
+        // Refresh local data
+        const idx = sessions.findIndex((s) => s.id === currentSessionId);
+        sessions[idx] = { ...sessions[idx], ...data };
+        closeM();
+        loadSession(currentSessionId);
+    };
+
+    document.getElementById("add-session-btn").onclick = async () => {
+        const nextNo = sessions.length + 1;
+        console.log("Adding session:", nextNo, "for class:", classId);
+
+        const { data, error } = await supabase
+            .from("course_sessions")
+            .insert({
+                class_id: classId,
+                session_no: nextNo,
+                meeting_type: "Tatap Muka",
+            })
+            .select()
+            .single();
+
+        if (error) {
+            console.error("Error adding session:", error);
+            alert(
+                "Gagal tambah pertemuan: " + (error.message || "Unknown error"),
+            );
+            return;
+        }
+        sessions.push(data);
+        loadSession(data.id);
+    };
+
+    document.getElementById("save-attendance-btn").onclick = async () => {
+        const btn = document.getElementById("save-attendance-btn");
+        btn.textContent = "Menyimpan...";
+        btn.disabled = true;
+
+        const records = students.map((s) => {
+            const radio = document.querySelector(
+                `input[name="att_${s.id}"]:checked`,
+            );
+            return {
+                session_id: currentSessionId,
+                student_id: s.id,
+                status: radio ? radio.value : "H",
+            };
+        });
+
+        const { error } = await supabase
+            .from("attendance_records")
+            .upsert(records, { onConflict: "session_id,student_id" });
+
+        if (error) {
+            console.error(error);
+            alert("Gagal simpan presensi: " + error.message);
+        } else {
+            alert("Presensi berhasil disimpan!");
+            loadSession(currentSessionId);
+        }
+
+        btn.textContent = "Simpan Presensi";
+        btn.disabled = false;
+    };
+
+    window.markAll = (status) => {
+        students.forEach((s) => {
+            const rad = document.querySelector(
+                `input[name="att_${s.id}"][value="${status}"]`,
+            );
+            if (rad) rad.checked = true;
+        });
+    };
+
+    init();
+</script>
+
+<style>
+    :root {
+        --primary: #2563eb;
+        --secondary: #64748b;
+        --bg: #f8fafc;
+        --card: #ffffff;
+        --border: #e2e8f0;
+        --text: #1e293b;
+    }
+
+    .lms-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 1.5rem;
+        font-family: "Inter", sans-serif;
+        color: var(--text);
+    }
+
+    .header-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 1rem;
+        padding: 1.5rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+        margin-bottom: 2rem;
+    }
+
+    .header-main {
+        display: flex;
+        gap: 1.5rem;
+        align-items: center;
+    }
+
+    .course-badge {
+        background: #dbeafe;
+        color: var(--primary);
+        font-weight: 800;
+        padding: 1rem;
+        border-radius: 0.75rem;
+        font-size: 1.1rem;
+    }
+
+    .course-info h1 {
+        margin: 0;
+        font-size: 1.5rem;
+        font-weight: 700;
+    }
+
+    .header-stats {
+        display: flex;
+        gap: 2rem;
+    }
+
+    .stat-item {
+        text-align: right;
+    }
+
+    .stat-label {
+        display: block;
+        font-size: 0.8rem;
+        color: var(--secondary);
+    }
+
+    .stat-value {
+        font-size: 1.75rem;
+        font-weight: 800;
+        color: var(--primary);
+    }
+
+    .stat-value.warning {
+        color: #f59e0b;
+    }
+
+    .dashboard-grid {
+        display: grid;
+        grid-template-columns: 280px 1fr;
+        gap: 2rem;
+    }
+
+    .session-nav h3 {
+        font-size: 1.1rem;
+        margin-bottom: 1rem;
+        padding-left: 0.5rem;
+    }
+
+    .session-list {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        overflow: hidden;
+        margin-bottom: 1rem;
+    }
+
+    .session-btn {
+        width: 100%;
+        padding: 1rem;
+        text-align: left;
+        border: none;
+        background: none;
+        border-bottom: 1px solid var(--border);
+        cursor: pointer;
+        font-weight: 500;
+        transition: all 0.2s;
+    }
+
+    .session-btn:hover {
+        background: #f1f5f9;
+    }
+    .session-btn.active {
+        background: var(--primary);
+        color: white;
+    }
+
+    .section-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: 0.75rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .section-header h2 {
+        margin: 0;
+        font-size: 1.25rem;
+    }
+
+    .metadata-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .metadata-table td {
+        padding: 0.75rem 0.5rem;
+        border-bottom: 1px solid #f1f5f9;
+        font-size: 0.95rem;
+    }
+
+    .metadata-table td:first-child {
+        width: 200px;
+        color: var(--secondary);
+    }
+
+    .activities-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+    }
+
+    .activity-list {
+        min-height: 100px;
+        display: flex;
+        flex-direction: column;
+        gap: 0.5rem;
+    }
+
+    .lms-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .lms-table th {
+        background: #f8fafc;
+        text-align: left;
+        padding: 1rem;
+        font-size: 0.85rem;
+        color: var(--secondary);
+        border-bottom: 2px solid var(--border);
+    }
+
+    .lms-table td {
+        padding: 1rem;
+        border-bottom: 1px solid var(--border);
+    }
+
+    .radio-label {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.25rem;
+        margin-right: 1rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        cursor: pointer;
+    }
+    .radio-label:hover {
+        background: #f1f5f9;
+    }
+    .radio-label.active {
+        background: #dbeafe;
+        font-weight: bold;
+    }
+
+    /* Modals */
+    .modal {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 100;
+    }
+
+    .modal-content {
+        background: white;
+        padding: 2rem;
+        border-radius: 1rem;
+        width: 500px;
+    }
+
+    .modal-content.large {
+        width: 800px;
+    }
+
+    .grid-form {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1.5rem;
+    }
+
+    .full-width {
+        grid-column: span 2;
+    }
+
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+    .form-group input,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 0.5rem;
+    }
+
+    .modal-actions {
+        grid-column: span 2;
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+
+    /* Utilitiy */
+    .btn {
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+    }
+    .btn-sm {
+        padding: 0.4rem 0.8rem;
+        border-radius: 0.4rem;
+        font-size: 0.85rem;
+    }
+    .btn-xs {
+        padding: 0.2rem 0.5rem;
+        border-radius: 0.3rem;
+        font-size: 0.75rem;
+        border: 1px solid var(--border);
+    }
+    .btn-primary {
+        background: var(--primary);
+        color: white;
+    }
+    .btn-outline {
+        background: white;
+        border: 1px solid var(--border);
+        color: var(--text);
+    }
+    .full-width {
+        width: 100%;
+    }
+    .mt-2 {
+        margin-top: 2rem;
+    }
+    .mr-1 {
+        margin-right: 1rem;
+    }
+    .ml-1 {
+        margin-left: 1rem;
+    }
+    .hidden {
+        display: none;
+    }
+
+    @media (max-width: 1024px) {
+        .dashboard-grid {
+            grid-template-columns: 1fr;
+        }
+        .activities-grid {
+            grid-template-columns: 1fr;
+        }
+    }
+</style>

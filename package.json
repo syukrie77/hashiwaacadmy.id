@@ -11,7 +11,9 @@
   "dependencies": {
     "@astrojs/vercel": "^9.0.4",
     "@supabase/supabase-js": "^2.94.1",
+    "@types/bcryptjs": "^2.4.6",
     "astro": "^5.17.1",
+    "bcryptjs": "^3.0.3",
     "tslib": "^2.8.1"
   }
 }

@@ -1,5 +1,7 @@
 -- FILE: supabase/fix_rls_policies.sql
 -- Run this script in your Supabase Dashboard > SQL Editor to fix the RLS errors.
+-- NOTE: For local/no-auth builds, you may temporarily allow public access (see previous version).
+-- For safer deployment, we lock RLS to authenticated users (auth.uid()).
 -- ==========================================
 -- 1. DATABASE TABLES POLICIES
 -- ==========================================
@@ -10,6 +12,8 @@ ALTER TABLE assignments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE exams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE classes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE exam_submissions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE submission_answers ENABLE ROW LEVEL SECURITY;
 -- Drop ALL logical variations of previous policies to ensure a clean slate
 DROP POLICY IF EXISTS "Public modules access" ON modules;
 DROP POLICY IF EXISTS "Public materials access" ON materials;
@@ -17,6 +21,8 @@ DROP POLICY IF EXISTS "Public assignments access" ON assignments;
 DROP POLICY IF EXISTS "Public exams access" ON exams;
 DROP POLICY IF EXISTS "Public classes access" ON classes;
 DROP POLICY IF EXISTS "Public users access" ON users;
+DROP POLICY IF EXISTS "Public exam_submissions access" ON exam_submissions;
+DROP POLICY IF EXISTS "Public submission_answers access" ON submission_answers;
 DROP POLICY IF EXISTS "Enable all functionality for modules" ON modules;
 DROP POLICY IF EXISTS "Enable all functionality for materials" ON materials;
 DROP POLICY IF EXISTS "Enable all functionality for assignments" ON assignments;
@@ -24,14 +30,43 @@ DROP POLICY IF EXISTS "Enable all functionality for exams" ON exams;
 DROP POLICY IF EXISTS "Enable read access for classes" ON classes;
 DROP POLICY IF EXISTS "Enable intent/update/delete for classes (admin only via anon?)" ON classes;
 DROP POLICY IF EXISTS "Enable read access for users" ON users;
+DROP POLICY IF EXISTS "Students create submissions" ON exam_submissions;
+DROP POLICY IF EXISTS "Students view own submissions" ON exam_submissions;
+DROP POLICY IF EXISTS "Students update own submissions" ON exam_submissions;
+DROP POLICY IF EXISTS "Students create answers" ON submission_answers;
+DROP POLICY IF EXISTS "Students view own answers" ON submission_answers;
 -- Create FULL ACCESS policies for 'anon' public role
 -- (Necessary because your app uses localStorage auth, not Supabase auth sessions)
-CREATE POLICY "Public modules access" ON modules FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public materials access" ON materials FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public assignments access" ON assignments FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public exams access" ON exams FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public classes access" ON classes FOR ALL USING (true) WITH CHECK (true);
-CREATE POLICY "Public users access" ON users FOR ALL USING (true) WITH CHECK (true);
+-- SAFER POLICIES (require Supabase Auth session)
+CREATE POLICY "Public modules access" ON modules FOR SELECT USING (true);
+CREATE POLICY "Public materials access" ON materials FOR SELECT USING (true);
+CREATE POLICY "Public assignments access" ON assignments FOR SELECT USING (true);
+CREATE POLICY "Public exams access" ON exams FOR SELECT USING (true);
+CREATE POLICY "Public classes access" ON classes FOR SELECT USING (true);
+CREATE POLICY "Public users access" ON users FOR SELECT USING (true);
+
+-- Students (logged-in) can manage own submissions/answers
+CREATE POLICY "Students create submissions" ON exam_submissions FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Students view own submissions" ON exam_submissions FOR SELECT
+    USING (auth.uid() = user_id);
+CREATE POLICY "Students update own submissions" ON exam_submissions FOR UPDATE
+    USING (auth.uid() = user_id);
+
+CREATE POLICY "Students create answers" ON submission_answers FOR INSERT
+    WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM exam_submissions s
+            WHERE s.id = submission_id AND s.user_id = auth.uid()
+        )
+    );
+CREATE POLICY "Students view own answers" ON submission_answers FOR SELECT
+    USING (
+        EXISTS (
+            SELECT 1 FROM exam_submissions s
+            WHERE s.id = submission_id AND s.user_id = auth.uid()
+        )
+    );
 -- ==========================================
 -- 2. STORAGE POLICIES (For File Uploads)
 -- ==========================================

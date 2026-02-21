@@ -64,6 +64,7 @@ import Layout from "../layouts/Layout.astro";
 
 <script>
     import { supabase } from "../lib/supabase";
+    import bcrypt from "bcryptjs";
 
     const form = document.getElementById("register-form");
 
@@ -76,35 +77,40 @@ import Layout from "../layouts/Layout.astro";
         const role = formData.get("role") as string;
 
         try {
-            // Check if user exists
+            // Cek apakah email sudah terdaftar
             const { data: existingUser } = await supabase
                 .from("users")
                 .select("id")
                 .eq("email", email)
-                .single();
+                .maybeSingle();
 
             if (existingUser) {
-                alert("Email already in use.");
+                alert("Email sudah terdaftar");
                 return;
             }
 
-            // Create user
-            const { data, error } = await supabase
-                .from("users")
-                .insert([{ name, email, password, role }])
-                .select()
-                .single();
+            // Hash password menggunakan bcrypt
+            const hashedPassword = await bcrypt.hash(password, 10);
+
+            // Tambahkan user ke tabel users dengan password yang di-hash
+            const { error } = await supabase.from("users").insert({
+                name,
+                email,
+                password: hashedPassword,
+                role,
+            });
 
             if (error) {
                 console.error(error);
-                alert("Error creating account: " + error.message);
-            } else {
-                alert("Account created! Please sign in.");
-                window.location.href = "/login";
+                alert("Gagal membuat akun");
+                return;
             }
+
+            alert("Akun berhasil dibuat! Silakan login.");
+            window.location.href = "/login";
         } catch (err) {
             console.error(err);
-            alert("An error occurred");
+            alert("Terjadi kesalahan");
         }
     });
 </script>

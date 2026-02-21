@@ -83,6 +83,7 @@ export const prerender = false;
 
     async function loadDashboardData(user: any) {
         try {
+            console.log("Dashboard - Current User:", user);
             // 1. Fetch courses owned by user
             const { data: courses, error: coursesError } = await supabase
                 .from("classes")
@@ -90,9 +91,18 @@ export const prerender = false;
                 .eq("owner_id", user.id)
                 .order("title");
 
-            if (coursesError) throw coursesError;
+            if (coursesError) {
+                console.error(
+                    "Dashboard - Error fetching courses:",
+                    coursesError,
+                );
+                throw coursesError;
+            } else {
+                console.log("Dashboard - Courses fetched:", courses);
+            }
 
             if (!courses || courses.length === 0) {
+                console.warn("Dashboard - No courses found for this user.");
                 loadingEl!.style.display = "none";
                 contentEl!.classList.remove("hidden");
                 noCoursesEl!.classList.remove("hidden");
@@ -184,6 +194,9 @@ export const prerender = false;
 
     .header {
         margin-bottom: 2rem;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
 
     .header h1 {

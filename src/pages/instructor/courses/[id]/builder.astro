@@ -4,6 +4,9 @@ const { id } = Astro.params;
 export const prerender = false;
 ---
 
+<script
+    src="https://cdn.tiny.cloud/1/zw0yo6gdvindf5fnz6xdlxsj3915hecnselxs4f4sdzoo868/tinymce/6/tinymce.min.js"
+    referrerpolicy="origin"></script>
 <Layout>
     <div class="instructor-container">
         <aside class="instructor-sidebar">
@@ -122,43 +125,52 @@ export const prerender = false;
 
     <div id="material-modal" class="modal hidden">
         <div class="modal-content">
-            <h3>Tambah Materi</h3>
+            <div class="modal-header">
+                <h3>Tambah Materi</h3>
+            </div>
             <form id="material-form">
-                <input type="hidden" id="mat-id" />
-                <input type="hidden" id="mat-mod-id" />
-                <div class="form-group">
-                    <label>Judul Materi</label>
-                    <input type="text" id="mat-title" required />
+                <div class="modal-body">
+                    <input type="hidden" id="mat-id" />
+                    <input type="hidden" id="mat-mod-id" />
+                    <div class="form-group">
+                        <label>Judul Materi</label>
+                        <input type="text" id="mat-title" required />
+                    </div>
+                    <div class="form-group">
+                        <label>Tipe</label>
+                        <select id="mat-type">
+                            <option value="video">Video</option>
+                            <option value="text">Teks/Artikel</option>
+                            <option value="pdf">PDF Document</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Konten (Teks/Artikel)</label>
+                        <textarea
+                            id="mat-content"
+                            rows="4"
+                            placeholder="Masukkan konten teks disini..."
+                        ></textarea>
+                    </div>
+                    <div class="form-group" id="file-upload-group">
+                        <label id="file-label">Upload File (Video/PDF)</label>
+                        <input
+                            type="file"
+                            id="mat-file"
+                            accept="video/*,.pdf"
+                        />
+                        <div id="upload-status" class="muted"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Urutan</label>
+                        <input type="number" id="mat-order" value="0" />
+                    </div>
+                    <div class="form-group">
+                        <label>Durasi (menit)</label>
+                        <input type="number" id="mat-duration" value="0" />
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Tipe</label>
-                    <select id="mat-type">
-                        <option value="video">Video</option>
-                        <option value="text">Teks/Artikel</option>
-                        <option value="pdf">PDF Document</option>
-                    </select>
-                </div>
-                <div class="form-group">
-                    <label>Konten (Teks/Artikel)</label>
-                    <textarea
-                        id="mat-content"
-                        rows="4"
-                        placeholder="Masukkan konten teks disini..."></textarea>
-                </div>
-                <div class="form-group" id="file-upload-group">
-                    <label id="file-label">Upload File (Video/PDF)</label>
-                    <input type="file" id="mat-file" accept="video/*,.pdf" />
-                    <div id="upload-status" class="muted"></div>
-                </div>
-                <div class="form-group">
-                    <label>Urutan</label>
-                    <input type="number" id="mat-order" value="0" />
-                </div>
-                <div class="form-group">
-                    <label>Durasi (menit)</label>
-                    <input type="number" id="mat-duration" value="0" />
-                </div>
-                <div class="modal-actions">
+                <div class="modal-footer">
                     <button type="button" class="btn btn-outline closeModal"
                         >Batal</button
                     >
@@ -396,6 +408,7 @@ export const prerender = false;
                 (
                     document.getElementById("upload-status") as HTMLElement
                 ).textContent = "";
+                removeTinyMCE();
                 const mid = document.getElementById(
                     "mat-mod-id",
                 ) as HTMLInputElement;
@@ -486,6 +499,7 @@ export const prerender = false;
                         ).value = mat.content;
                         fileGroup?.classList.add("hidden");
                         contentGroup?.classList.remove("hidden");
+                        setTimeout(initTinyMCE, 100);
                     } else {
                         fileGroup?.classList.remove("hidden");
                         contentGroup?.classList.add("hidden");
@@ -595,10 +609,12 @@ export const prerender = false;
     // Modals
     const openM = (id: string) =>
         document.getElementById(id)?.classList.remove("hidden");
-    const closeM = () =>
+    const closeM = () => {
         document
             .querySelectorAll(".modal")
             .forEach((m) => m.classList.add("hidden"));
+        if (typeof removeTinyMCE === "function") removeTinyMCE();
+    };
 
     document.getElementById("add-module-btn")!.onclick = () => {
         (document.getElementById("module-form") as HTMLFormElement).reset();
@@ -666,11 +682,36 @@ export const prerender = false;
     const fileGroup = document.getElementById("file-upload-group");
     const contentGroup = document.getElementById("mat-content")?.parentElement;
 
+    // TinyMCE Helpers
+    const initTinyMCE = () => {
+        if (tinymce.get("mat-content")) return;
+        tinymce.init({
+            selector: "#mat-content",
+            plugins:
+                "advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount",
+            toolbar:
+                "undo redo | formatselect | bold italic backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help",
+            height: 300,
+            setup: function (editor: any) {
+                editor.on("change", function () {
+                    editor.save();
+                });
+            },
+        });
+    };
+
+    const removeTinyMCE = () => {
+        if (tinymce.get("mat-content")) {
+            tinymce.get("mat-content")!.remove();
+        }
+    };
+
     matTypeSelect.onchange = () => {
         const type = matTypeSelect.value;
         if (type === "text") {
             fileGroup?.classList.add("hidden");
             contentGroup?.classList.remove("hidden");
+            initTinyMCE();
         } else {
             fileGroup?.classList.remove("hidden");
             contentGroup?.classList.add("hidden");
@@ -679,6 +720,7 @@ export const prerender = false;
             ) as HTMLInputElement;
             if (type === "video") fileInput.accept = "video/*";
             else if (type === "pdf") fileInput.accept = ".pdf";
+            removeTinyMCE();
         }
     };
 
@@ -689,9 +731,24 @@ export const prerender = false;
             "mat-file",
         ) as HTMLInputElement;
         const statusEl = document.getElementById("upload-status");
-        let content = (
-            document.getElementById("mat-content") as HTMLTextAreaElement
-        ).value;
+
+        let content = "";
+        // Sync content from TinyMCE if type is text
+        if (type === "text") {
+            if (tinymce.get("mat-content")) {
+                content = tinymce.get("mat-content")!.getContent();
+            } else {
+                content = (
+                    document.getElementById(
+                        "mat-content",
+                    ) as HTMLTextAreaElement
+                ).value;
+            }
+        } else {
+            content = (
+                document.getElementById("mat-content") as HTMLTextAreaElement
+            ).value;
+        }
 
         try {
             if (type !== "text" && fileInput.files?.length) {
@@ -1026,6 +1083,63 @@ export const prerender = false;
         justify-content: flex-end;
         gap: 1rem;
         margin-top: 1rem;
+    }
+
+    /* Improved Modal Styles */
+    .modal-content {
+        background: white;
+        border-radius: 0.75rem;
+        width: 700px;
+        max-width: 95vw;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+        box-shadow:
+            0 20px 25px -5px rgba(0, 0, 0, 0.1),
+            0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        overflow: hidden;
+    }
+    .modal-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+        background: #fff;
+    }
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: #1e293b;
+    }
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #e2e8f0;
+        background: #f8fafc;
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+    }
+    /* Legacy override for other modals if they use old structure inside new container */
+    .modal-content > h3 {
+        margin: 1.5rem 1.5rem 0.5rem;
+    }
+    .modal-content > form {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        overflow: hidden; /* For new structure */
+    }
+    /* Handle legacy modals that just contain form elements directly */
+    .modal-content > form > .form-group:first-child {
+        margin-top: 1rem;
+        padding: 0 1.5rem;
+    }
+    .modal-content > form > .form-group {
+        padding: 0 1.5rem;
     }
 
     .state-message {

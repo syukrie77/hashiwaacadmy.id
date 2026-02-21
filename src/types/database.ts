@@ -241,19 +241,112 @@ export interface Database {
                     id: string
                     exam_id: string
                     question: string
-                    correct_answer: string
+                    correct_answer: string | null
+                    type?: 'multiple_choice' | 'essay' | 'true_false'
+                    points?: number | null
+                    order_no?: number | null
                 }
                 Insert: {
                     id?: string
                     exam_id: string
                     question: string
-                    correct_answer: string
+                    correct_answer?: string | null
+                    type?: 'multiple_choice' | 'essay' | 'true_false'
+                    points?: number | null
+                    order_no?: number | null
                 }
                 Update: {
                     id?: string
                     exam_id?: string
                     question?: string
-                    correct_answer?: string
+                    correct_answer?: string | null
+                    type?: 'multiple_choice' | 'essay' | 'true_false'
+                    points?: number | null
+                    order_no?: number | null
+                }
+            }
+            question_options: {
+                Row: {
+                    id: string
+                    question_id: string
+                    option_text: string
+                    is_correct: boolean | null
+                    order_no: number | null
+                }
+                Insert: {
+                    id?: string
+                    question_id: string
+                    option_text: string
+                    is_correct?: boolean | null
+                    order_no?: number | null
+                }
+                Update: {
+                    id?: string
+                    question_id?: string
+                    option_text?: string
+                    is_correct?: boolean | null
+                    order_no?: number | null
+                }
+            }
+            exam_submissions: {
+                Row: {
+                    id: string
+                    exam_id: string
+                    user_id: string
+                    status: 'in_progress' | 'submitted' | 'graded'
+                    score: number | null
+                    started_at: string
+                    submitted_at: string | null
+                }
+                Insert: {
+                    id?: string
+                    exam_id: string
+                    user_id: string
+                    status?: 'in_progress' | 'submitted' | 'graded'
+                    score?: number | null
+                    started_at?: string
+                    submitted_at?: string | null
+                }
+                Update: {
+                    id?: string
+                    exam_id?: string
+                    user_id?: string
+                    status?: 'in_progress' | 'submitted' | 'graded'
+                    score?: number | null
+                    started_at?: string
+                    submitted_at?: string | null
+                }
+            }
+            submission_answers: {
+                Row: {
+                    id: string
+                    submission_id: string
+                    question_id: string
+                    selected_option_id: string | null
+                    answer_text: string | null
+                    is_correct: boolean | null
+                    points_awarded: number | null
+                    feedback: string | null
+                }
+                Insert: {
+                    id?: string
+                    submission_id: string
+                    question_id: string
+                    selected_option_id?: string | null
+                    answer_text?: string | null
+                    is_correct?: boolean | null
+                    points_awarded?: number | null
+                    feedback?: string | null
+                }
+                Update: {
+                    id?: string
+                    submission_id?: string
+                    question_id?: string
+                    selected_option_id?: string | null
+                    answer_text?: string | null
+                    is_correct?: boolean | null
+                    points_awarded?: number | null
+                    feedback?: string | null
                 }
             }
             results: {

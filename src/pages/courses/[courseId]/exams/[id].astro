@@ -66,12 +66,36 @@ if (!courseId || !id) {
     let examStartTime = null;
 
     async function init() {
-        const userStr = localStorage.getItem("user");
-        if (!userStr) {
+        // Ambil data user dari localStorage
+        const userData = localStorage.getItem("user");
+        if (!userData) {
             window.location.href = "/login";
             return;
         }
-        const user = JSON.parse(userStr);
+
+        const user = JSON.parse(userData);
+
+        // Pastikan user ada di tabel users
+        try {
+            const { data: existing } = await supabase
+                .from("users")
+                .select("id")
+                .eq("id", user.id)
+                .maybeSingle();
+
+            if (!existing) {
+                await supabase.from("users").insert({
+                    id: user.id,
+                    name: user.name || user.email || "Student",
+                    email: user.email,
+                    role: user.role || "student",
+                });
+            }
+        } catch (err) {
+            console.error(err);
+            showError("Gagal memulai ujian (profil). Silakan hubungi support.");
+            return;
+        }
 
         // 1. Fetch Exam Details
         const { data: exam, error: exError } = await supabase
@@ -94,7 +118,7 @@ if (!courseId || !id) {
             .select("*")
             .eq("user_id", user.id)
             .eq("exam_id", examId)
-            .single();
+            .maybeSingle();
 
         if (!sub) {
             // Start new submission
@@ -110,7 +134,14 @@ if (!courseId || !id) {
                 .single();
 
             if (createError) {
-                showError("Failed to start exam.");
+                console.error(createError);
+                if (createError.code === "23503") {
+                    showError(
+                        "Akun belum sinkron. Silakan logout lalu login ulang untuk menyamakan akun Supabase Auth dengan profil."
+                    );
+                } else {
+                    showError("Failed to start exam. Please contact support.");
+                }
                 return;
             }
             submissionId = newSub.id;
@@ -258,7 +289,14 @@ if (!courseId || !id) {
         const form = document.getElementById("exam-form");
         const formData = new FormData(form);
         const answers = [];
-        const user = JSON.parse(localStorage.getItem("user"));
+
+        // Cek apakah user masih login
+        const userData = localStorage.getItem("user");
+        if (!userData) {
+            alert("Sesi telah berakhir. Silakan login kembali.");
+            window.location.href = "/login";
+            return;
+        }
 
         // 1. Collect Answers
         // We need to iterate over QUESTIONS to know what to look for?
@@ -298,7 +336,7 @@ if (!courseId || !id) {
 
         if (ansError) {
             console.error(ansError);
-            alert("Error submitting answers. Please try again.");
+            alert("Gagal mengirim jawaban. Silakan coba lagi.");
             return;
         }
 

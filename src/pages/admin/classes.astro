@@ -93,6 +93,9 @@ import Layout from "../../layouts/Layout.astro";
 
             if (error) throw error;
 
+            console.log("Fetched Courses:", courses); // Debug log
+            console.log("Fetched Instructors:", instructors); // Debug log
+
             if (!courses || courses.length === 0) {
                 loading!.innerHTML =
                     '<div class="state-message">No courses found. Start by creating one!</div>';
@@ -108,6 +111,12 @@ import Layout from "../../layouts/Layout.astro";
                 let instructorOptions =
                     '<option value="">-- Pilih Instructor --</option>';
                 instructors.forEach((inst) => {
+                    // Debug comparison
+                    if (course.owner_id === inst.id) {
+                        console.log(
+                            `Match found for course ${course.title}: Owner ${course.owner_id} matches Inst ${inst.id}`,
+                        );
+                    }
                     const selected =
                         course.owner_id === inst.id ? "selected" : "";
                     instructorOptions += `<option value="${inst.id}" ${selected}>${inst.name}</option>`;
@@ -178,13 +187,26 @@ import Layout from "../../layouts/Layout.astro";
                     target.disabled = true;
                     target.textContent = "Menyimpan...";
 
+                    console.log(
+                        `Attempting to assign owner ${newOwnerId} to course ${courseId}`,
+                    );
+
                     try {
-                        const { error } = await supabase
+                        const { data: updateData, error } = await supabase
                             .from("classes")
                             .update({ owner_id: newOwnerId })
-                            .eq("id", courseId);
+                            .eq("id", courseId)
+                            .select(); // Add select() to see returned data
+
+                        console.log("Update Result:", { updateData, error });
 
                         if (error) throw error;
+
+                        if (!updateData || updateData.length === 0) {
+                            throw new Error(
+                                "Update gagal (0 data diubah). Pastikan Anda memiliki izin atau RLS dikonfigurasi dengan benar.",
+                            );
+                        }
 
                         instSelect.dataset.currentOwner = newOwnerId || "";
                         target.textContent = "Assigned ✓";
@@ -193,6 +215,9 @@ import Layout from "../../layouts/Layout.astro";
                         setTimeout(() => {
                             target.textContent = "Assign";
                         }, 2000);
+
+                        // Force a reload to verify persistence if needed, or just rely on UI update
+                        // window.location.reload();
                     } catch (err: any) {
                         console.error(err);
                         alert("Gagal assign instructor: " + err.message);
