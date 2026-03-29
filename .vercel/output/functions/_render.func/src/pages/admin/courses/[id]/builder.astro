@@ -1,0 +1,1199 @@
+---
+import Layout from "../../../../layouts/Layout.astro";
+const { id } = Astro.params;
+export const prerender = false;
+
+const user = Astro.locals.user;
+if (!user || user.role !== "admin") {
+    return Astro.redirect("/login");
+}
+---
+
+<script
+    src="https://cdn.tiny.cloud/1/zw0yo6gdvindf5fnz6xdlxsj3915hecnselxs4f4sdzoo868/tinymce/6/tinymce.min.js"
+    referrerpolicy="origin"></script>
+<Layout>
+    <div id="user-data" data-user={JSON.stringify(user)} class="hidden"></div>
+    <div class="admin-container">
+        <aside class="admin-sidebar">
+            <div class="brand">Admin Panel</div>
+            <nav>
+                <a href="/admin/dashboard">Overview</a>
+                <a href="/admin/users">Users</a>
+                <a href="/admin/classes" class="active">Course Management</a>
+                <div class="nav-divider"></div>
+                <a href="/admin/courses/new" class="btn-create-sidebar"
+                    >+ New Course</a
+                >
+            </nav>
+            <div class="footer">
+                <a href="/dashboard">Return to Student Dash</a>
+            </div>
+        </aside>
+
+        <main class="admin-main">
+            <div class="admin-header">
+                <div>
+                    <h1 id="course-title">Loading Course...</h1>
+                    <p id="course-desc" class="muted"></p>
+                </div>
+                <div class="actions">
+                    <a href="/admin/classes" class="btn btn-outline"
+                        >Back to List</a
+                    >
+                    <button id="add-module-btn" class="btn btn-primary"
+                        >+ Add Module</button
+                    >
+                </div>
+            </div>
+
+            <div id="loading" class="state-message">
+                Syncing course content...
+            </div>
+
+            <div id="builder-content" class="builder-container hidden">
+                <div class="builder-tabs">
+                    <button class="tab-btn active" data-tab="modules"
+                        >Modules & Materials</button
+                    >
+                    <button class="tab-btn" data-tab="assignments"
+                        >Assignments</button
+                    >
+                    <button class="tab-btn" data-tab="exams">Exams</button>
+                </div>
+
+                <div id="tab-modules" class="tab-content active">
+                    <div id="modules-list" class="modules-grid"></div>
+                </div>
+
+                <div id="tab-assignments" class="tab-content">
+                    <div class="section-header">
+                        <h2>Assignments</h2>
+                        <button id="add-assignment-btn" class="btn btn-primary"
+                            >+ Add Assignment</button
+                        >
+                    </div>
+                    <div id="assignments-list" class="items-list"></div>
+                </div>
+
+                <div id="tab-exams" class="tab-content">
+                    <div class="section-header">
+                        <h2>Exams</h2>
+                        <button id="add-exam-btn" class="btn btn-primary"
+                            >+ Add Exam</button
+                        >
+                    </div>
+                    <div id="exams-list" class="items-list"></div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modals -->
+    <div id="module-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3 id="modal-title">Add Module</h3>
+            <form id="module-form">
+                <input type="hidden" id="module-id" />
+                <div class="form-group">
+                    <label>Module Title</label>
+                    <input type="text" id="m-title" required />
+                </div>
+                <div class="form-group">
+                    <label>Harga Modul (Rp)</label>
+                    <input
+                        type="number"
+                        id="m-price"
+                        placeholder="0 = Gratis"
+                    />
+                </div>
+                <div class="form-group">
+                    <label>Order No</label>
+                    <input type="number" id="m-order" value="0" />
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline closeModal"
+                        >Cancel</button
+                    >
+                    <button type="submit" class="btn btn-primary"
+                        >Save Module</button
+                    >
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="material-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Tambah Materi</h3>
+            </div>
+            <form id="material-form">
+                <div class="modal-body">
+                    <input type="hidden" id="mat-id" />
+                    <!-- ID for the material itself -->
+                    <input type="hidden" id="mat-mod-id" />
+                    <!-- Foreign Key to Module -->
+                    <div class="form-group">
+                        <label>Judul Materi</label>
+                        <input type="text" id="mat-title" required />
+                    </div>
+                    <div class="form-group">
+                        <label>Tipe</label>
+                        <select id="mat-type">
+                            <option value="video">Video</option>
+                            <option value="text">Content (Text/Article)</option>
+                            <option value="pdf">PDF Document</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Content (Text/Article)</label>
+                        <textarea
+                            id="mat-content"
+                            rows="4"
+                            placeholder="Enter text content here..."></textarea>
+                    </div>
+                    <div class="form-group" id="file-upload-group">
+                        <label id="file-label">Upload File (Video/PDF)</label>
+                        <input
+                            type="file"
+                            id="mat-file"
+                            accept="video/*,.pdf"
+                        />
+                        <div id="upload-status" class="muted"></div>
+                    </div>
+                    <div class="form-group">
+                        <label>Urutan</label>
+                        <input type="number" id="mat-order" value="0" />
+                    </div>
+                    <div class="form-group">
+                        <label>Durasi (menit)</label>
+                        <input type="number" id="mat-duration" value="0" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline closeModal"
+                        >Batal</button
+                    >
+                    <button type="submit" class="btn btn-primary"
+                        >Simpan Materi</button
+                    >
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="assignment-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Add Assignment</h3>
+            <form id="assignment-form">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="ass-title" required />
+                </div>
+                <div class="form-group">
+                    <label>Description</label>
+                    <textarea id="ass-desc" rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                    <label>Deadline</label>
+                    <input type="datetime-local" id="ass-deadline" />
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline closeModal"
+                        >Cancel</button
+                    >
+                    <button type="submit" class="btn btn-primary"
+                        >Save Assignment</button
+                    >
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div id="exam-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Add Exam</h3>
+            <form id="exam-form">
+                <div class="form-group">
+                    <label>Title</label>
+                    <input type="text" id="ex-title" required />
+                </div>
+                <div class="form-group">
+                    <label>Duration (minutes)</label>
+                    <input type="number" id="ex-duration" value="60" />
+                </div>
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-outline closeModal"
+                        >Cancel</button
+                    >
+                    <button type="submit" class="btn btn-primary"
+                        >Save Exam</button
+                    >
+                </div>
+            </form>
+        </div>
+    </div>
+</Layout>
+<script>
+    import { supabase } from "../../../../lib/supabase";
+
+    // Get ID from URL /admin/courses/[id]/builder
+    const pathParts = window.location.pathname.split("/");
+    const courseId = pathParts[pathParts.length - 2];
+
+    const userEl = document.getElementById("user-data");
+    const userStr = userEl ? userEl.dataset.user : null;
+    if (!userStr || JSON.parse(userStr).role !== "admin") {
+        window.location.href = "/login";
+    }
+
+    async function fetchData() {
+        const { data: course } = await (supabase as any)
+            .from("classes")
+            .select("*")
+            .eq("id", courseId)
+            .single();
+        const { data: modules } = await (supabase as any)
+            .from("modules")
+            .select("*")
+            .eq("class_id", courseId)
+            .order("order_no");
+        const { data: materials } = await (supabase as any)
+            .from("materials")
+            .select("*, modules!inner(class_id)")
+            .eq("modules.class_id", courseId)
+            .order("order_no");
+        const { data: assignments } = await (supabase as any)
+            .from("assignments")
+            .select("*")
+            .eq("class_id", courseId);
+        const { data: exams } = await (supabase as any)
+            .from("exams")
+            .select("*")
+            .eq("class_id", courseId);
+
+        return { course, modules, materials, assignments, exams };
+    }
+
+    function renderBuilder(data: any) {
+        if (!data.course) return;
+        document.getElementById("course-title")!.textContent =
+            data.course.title;
+        document.getElementById("course-desc")!.textContent =
+            data.course.description;
+
+        renderModules(data);
+        renderAssignments(data);
+        renderExams(data);
+    }
+
+    function renderModules(data: any) {
+        const container = document.getElementById("modules-list");
+        if (!container) return;
+        container.innerHTML = "";
+
+        if (!data.modules || data.modules.length === 0) {
+            container.innerHTML =
+                '<div class="empty-state">No modules yet.</div>';
+            return;
+        }
+
+        data.modules.forEach((mod: any) => {
+            const modEl = document.createElement("div");
+            modEl.className = "module-card";
+            modEl.innerHTML = `
+                <div class="module-header">
+                    <div>
+                        <h3>${mod.title}</h3>
+                        ${mod.price > 0 ? `<div class="badge-price">Rp ${mod.price.toLocaleString("id-ID")}</div>` : ""}
+                    </div>
+                    <div class="mod-actions">
+                        <button class="btn-sm btn-outline add-mat" data-id="${mod.id}">+ Material</button>
+                        <button class="btn-sm btn-outline edit-mod" data-id="${mod.id}">Edit</button>
+                        <button class="btn-sm btn-outline delete-mod" data-id="${mod.id}">Delete</button>
+                    </div>
+                </div>
+                <ul class="materials-list" id="m-list-${mod.id}"></ul>
+            `;
+            container.appendChild(modEl);
+
+            const mList = modEl.querySelector(`#m-list-${mod.id}`);
+            const modMaterials = (data.materials || []).filter(
+                (m: any) => m.module_id === mod.id,
+            );
+
+            modMaterials.forEach((mat: any) => {
+                const li = document.createElement("li");
+                li.innerHTML = `
+                    <div class="mat-info">
+                        <span class="type-icon">${mat.type === "video" ? "📽️" : mat.type === "pdf" ? "📄" : "📝"}</span>
+                        <span class="mat-name">${mat.title}</span>
+                        <span class="mat-order">Order: ${mat.order_no}</span>
+                    </div>
+                    <div>
+                        <button class="edit-mat" data-id="${mat.id}">✏️</button>
+                        <button class="delete-mat" data-id="${mat.id}">🗑️</button>
+                    </div>
+                `;
+                if (mList) mList.appendChild(li);
+            });
+        });
+
+        document
+            .querySelectorAll(".delete-mod")
+            .forEach(
+                (btn) =>
+                    ((btn as any).onclick = () =>
+                        deleteItem(
+                            "modules",
+                            (btn as any).dataset.id,
+                            "Delete module and materials?",
+                        )),
+            );
+        document
+            .querySelectorAll(".delete-mat")
+            .forEach(
+                (btn) =>
+                    ((btn as any).onclick = () =>
+                        deleteItem(
+                            "materials",
+                            (btn as any).dataset.id,
+                            "Delete material?",
+                        )),
+            );
+        document.querySelectorAll(".add-mat").forEach((btn) => {
+            (btn as any).onclick = () => {
+                const f = document.getElementById(
+                    "material-form",
+                ) as HTMLFormElement;
+                f.reset();
+                (document.getElementById("mat-id") as HTMLInputElement).value =
+                    ""; // Clear update ID
+                (
+                    document.getElementById("upload-status") as HTMLElement
+                ).textContent = ""; // Clear status
+                removeTinyMCE();
+
+                const mid = document.getElementById(
+                    "mat-mod-id",
+                ) as HTMLInputElement;
+                if (mid) mid.value = (btn as any).dataset.id;
+                document
+                    .getElementById("material-modal")
+                    ?.classList.remove("hidden");
+            };
+        });
+
+        // Edit Handlers
+        document.querySelectorAll(".edit-mod").forEach((btn) => {
+            (btn as any).onclick = () => {
+                const modId = (btn as any).dataset.id;
+                const mod = data.modules.find((m: any) => m.id === modId);
+                if (mod) {
+                    (
+                        document.getElementById(
+                            "module-form",
+                        ) as HTMLFormElement
+                    ).reset();
+                    (
+                        document.getElementById("module-id") as HTMLInputElement
+                    ).value = mod.id;
+                    (
+                        document.getElementById("m-title") as HTMLInputElement
+                    ).value = mod.title;
+                    (
+                        document.getElementById("m-order") as HTMLInputElement
+                    ).value = mod.order_no || 0;
+                    openM("module-modal");
+                }
+            };
+        });
+
+        document.querySelectorAll(".edit-mat").forEach((btn) => {
+            (btn as any).onclick = () => {
+                const matId = (btn as any).dataset.id;
+                const mat = (data.materials || []).find(
+                    (m: any) => m.id === matId,
+                );
+                if (mat) {
+                    const f = document.getElementById(
+                        "material-form",
+                    ) as HTMLFormElement;
+                    f.reset();
+                    (
+                        document.getElementById("mat-id") as HTMLInputElement
+                    ).value = mat.id;
+                    (
+                        document.getElementById(
+                            "mat-mod-id",
+                        ) as HTMLInputElement
+                    ).value = mat.module_id;
+                    (
+                        document.getElementById("mat-title") as HTMLInputElement
+                    ).value = mat.title;
+                    (
+                        document.getElementById("mat-type") as HTMLInputElement
+                    ).value = mat.type;
+                    (
+                        document.getElementById("mat-order") as HTMLInputElement
+                    ).value = mat.order_no || 0;
+                    (
+                        document.getElementById(
+                            "mat-duration",
+                        ) as HTMLInputElement
+                    ).value = mat.duration || 0;
+
+                    const contentGroup =
+                        document.getElementById("mat-content")?.parentElement;
+                    const fileGroup =
+                        document.getElementById("file-upload-group");
+                    const matTypeSelect = document.getElementById(
+                        "mat-type",
+                    ) as HTMLSelectElement;
+
+                    // Trigger change to set UI state
+                    matTypeSelect.dispatchEvent(new Event("change"));
+
+                    // Manually handle content population
+                    if (mat.type === "text") {
+                        (
+                            document.getElementById(
+                                "mat-content",
+                            ) as HTMLTextAreaElement
+                        ).value = mat.content;
+                        fileGroup?.classList.add("hidden");
+                        contentGroup?.classList.remove("hidden");
+                        // Delay init to ensure modal is visible
+                        setTimeout(initTinyMCE, 100);
+                    } else {
+                        fileGroup?.classList.remove("hidden");
+                        contentGroup?.classList.add("hidden");
+                        // Can't set file input value, but we can show status or keep URL if not replaced
+                        const statusEl =
+                            document.getElementById("upload-status");
+                        if (statusEl)
+                            statusEl.textContent =
+                                "Current file: " +
+                                (mat.content ? "Uploaded" : "None");
+                        // Store current content URL in textarea as fallback/keeper?
+                        // No, we handle that in submit logic.
+                        (
+                            document.getElementById(
+                                "mat-content",
+                            ) as HTMLTextAreaElement
+                        ).value = mat.content || "";
+                    }
+
+                    openM("material-modal");
+                }
+            };
+        });
+    }
+
+    function renderAssignments(data: any) {
+        const container = document.getElementById("assignments-list");
+        if (!container) return;
+        container.innerHTML =
+            (data.assignments || [])
+                .map(
+                    (ass: any) => `
+            <div class="item-row">
+                <div class="item-info">
+                    <h4>${ass.title}</h4>
+                    <span class="muted">Deadline: ${ass.deadline ? new Date(ass.deadline).toLocaleString() : "No deadline"}</span>
+                </div>
+                <button class="btn-sm danger delete-ass" data-id="${ass.id}">Delete</button>
+            </div>
+        `,
+                )
+                .join("") ||
+            '<div class="empty-state">No assignments yet.</div>';
+
+        document
+            .querySelectorAll(".delete-ass")
+            .forEach(
+                (btn) =>
+                    ((btn as any).onclick = () =>
+                        deleteItem(
+                            "assignments",
+                            (btn as any).dataset.id,
+                            "Delete assignment?",
+                        )),
+            );
+    }
+
+    function renderExams(data: any) {
+        const container = document.getElementById("exams-list");
+        if (!container) return;
+        container.innerHTML =
+            (data.exams || [])
+                .map(
+                    (ex: any) => `
+            <div class="item-row">
+                <div class="item-info">
+                    <h4>${ex.title}</h4>
+                    <span class="muted">Duration: ${ex.duration} mins</span>
+                </div>
+                <div class="actions">
+                    <a href="/admin/courses/${courseId}/exams/${ex.id}" class="btn-sm btn-outline">Edit Questions</a>
+                    <button class="btn-sm danger delete-ex" data-id="${ex.id}">Delete</button>
+                </div>
+            </div>
+        `,
+                )
+                .join("") || '<div class="empty-state">No exams yet.</div>';
+
+        document
+            .querySelectorAll(".delete-ex")
+            .forEach(
+                (btn) =>
+                    ((btn as any).onclick = () =>
+                        deleteItem(
+                            "exams",
+                            (btn as any).dataset.id,
+                            "Delete exam?",
+                        )),
+            );
+    }
+
+    async function refresh() {
+        const data = await fetchData();
+        renderBuilder(data);
+        document.getElementById("loading")!.style.display = "none";
+        document.getElementById("builder-content")!.classList.remove("hidden");
+    }
+
+    // Tab Logic
+    document.querySelectorAll(".tab-btn").forEach((btn) => {
+        btn.onclick = () => {
+            document
+                .querySelectorAll(".tab-btn")
+                .forEach((b) => b.classList.remove("active"));
+            document
+                .querySelectorAll(".tab-content")
+                .forEach((c) => c.classList.remove("active"));
+            btn.classList.add("active");
+            document
+                .getElementById(`tab-${(btn as any).dataset.tab}`)
+                ?.classList.add("active");
+        };
+    });
+
+    // Modals
+    const openM = (id: string) =>
+        document.getElementById(id)?.classList.remove("hidden");
+    const closeM = () => {
+        document
+            .querySelectorAll(".modal")
+            .forEach((m) => m.classList.add("hidden"));
+        if (typeof removeTinyMCE === "function") removeTinyMCE();
+    };
+
+    document.getElementById("add-module-btn")!.onclick = () => {
+        (document.getElementById("module-form") as HTMLFormElement).reset();
+        (document.getElementById("module-id") as HTMLInputElement).value = "";
+        openM("module-modal");
+    };
+    document.getElementById("add-assignment-btn")!.onclick = () =>
+        openM("assignment-modal");
+    document.getElementById("add-exam-btn")!.onclick = () =>
+        openM("exam-modal");
+    document
+        .querySelectorAll(".closeModal")
+        .forEach((b) => ((b as HTMLElement).onclick = closeM));
+
+    // Forms
+    const handleS = async (
+        id: string,
+        table: string,
+        getV: () => any,
+        mid: string,
+    ) => {
+        const f = document.getElementById(id) as HTMLFormElement;
+        f.onsubmit = async (e) => {
+            e.preventDefault();
+            const values = getV();
+            // Remove ID if empty to ensure insert triggers (though UUID gen usually happens on DB if omitted)
+            if (!values.id) delete values.id;
+
+            // Sync TinyMCE content back to textarea
+            if (tinymce.get("mat-content")) {
+                (
+                    document.getElementById(
+                        "mat-content",
+                    ) as HTMLTextAreaElement
+                ).value = tinymce.get("mat-content")!.getContent();
+            }
+
+            const { error } = await (supabase as any)
+                .from(table)
+                .upsert(values); // Changed from insert to upsert
+
+            if (!error) {
+                closeM();
+                f.reset();
+                refresh();
+            }
+        };
+    };
+
+    handleS(
+        "module-form",
+        "modules",
+        () => ({
+            class_id: courseId,
+            id: (document.getElementById("module-id") as HTMLInputElement)
+                .value,
+            title: (document.getElementById("m-title") as HTMLInputElement)
+                .value,
+            price: parseFloat(
+                (document.getElementById("m-price") as HTMLInputElement).value,
+            ),
+            order_no: (document.getElementById("m-order") as HTMLInputElement)
+                .value,
+        }),
+        "module-modal",
+    );
+    const materialForm = document.getElementById(
+        "material-form",
+    ) as HTMLFormElement;
+    const matTypeSelect = document.getElementById(
+        "mat-type",
+    ) as HTMLSelectElement;
+    const fileGroup = document.getElementById("file-upload-group");
+    const contentGroup = document.getElementById("mat-content")?.parentElement;
+
+    // TinyMCE Helpers
+    const initTinyMCE = () => {
+        if (tinymce.get("mat-content")) return;
+        tinymce.init({
+            selector: "#mat-content",
+            plugins:
+                "advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount",
+            toolbar:
+                "undo redo | formatselect | bold italic backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help",
+            height: 300,
+            setup: function (editor: any) {
+                editor.on("change", function () {
+                    editor.save();
+                });
+            },
+        });
+    };
+
+    const removeTinyMCE = () => {
+        if (tinymce.get("mat-content")) {
+            tinymce.get("mat-content")!.remove();
+        }
+    };
+
+    matTypeSelect.onchange = () => {
+        const type = matTypeSelect.value;
+        if (type === "text") {
+            fileGroup?.classList.add("hidden");
+            contentGroup?.classList.remove("hidden");
+            initTinyMCE();
+        } else {
+            fileGroup?.classList.remove("hidden");
+            contentGroup?.classList.add("hidden");
+            const fileInput = document.getElementById(
+                "mat-file",
+            ) as HTMLInputElement;
+            if (type === "video") fileInput.accept = "video/*";
+            else if (type === "pdf") fileInput.accept = ".pdf";
+            removeTinyMCE();
+        }
+    };
+
+    materialForm.onsubmit = async (e) => {
+        e.preventDefault();
+        const type = matTypeSelect.value;
+        const fileInput = document.getElementById(
+            "mat-file",
+        ) as HTMLInputElement;
+        const statusEl = document.getElementById("upload-status");
+
+        let content = "";
+        // Sync content from TinyMCE if type is text
+        if (type === "text") {
+            if (tinymce.get("mat-content")) {
+                content = tinymce.get("mat-content")!.getContent();
+            } else {
+                content = (
+                    document.getElementById(
+                        "mat-content",
+                    ) as HTMLTextAreaElement
+                ).value;
+            }
+        } else {
+            content = (
+                document.getElementById("mat-content") as HTMLTextAreaElement
+            ).value;
+        }
+
+        try {
+            if (type !== "text" && fileInput.files?.length) {
+                const file = fileInput.files[0];
+                
+                // Get file extension
+                const fileName = file.name.toLowerCase();
+                const fileExt = fileName.split(".").pop() || "unknown";
+
+                // Validate file type
+                const validVideoTypes = ["video/mp4", "video/webm", "video/ogg", "video/quicktime"];
+                const validVideoExts = ["mp4", "webm", "ogg", "mov", "avi", "mkv"];
+                const validPdfTypes = ["application/pdf"];
+                const validPdfExts = ["pdf"];
+
+                if (type === "video") {
+                    if (!validVideoTypes.includes(file.type) && !validVideoExts.includes(fileExt)) {
+                        throw new Error(
+                            `❌ Format video tidak valid.\n\nFormat yang didukung: MP4, WebM, OGG, MOV\nFile Anda: ${file.type || fileExt}`
+                        );
+                    }
+                } else if (type === "pdf") {
+                    if (!validPdfTypes.includes(file.type) && !validPdfExts.includes(fileExt)) {
+                        throw new Error(
+                            `❌ Format file bukan PDF.\n\nFile Anda: ${file.type || fileExt}`
+                        );
+                    }
+                }
+
+                // Validate file size (500MB for video, 50MB for PDF)
+                const maxSize = type === "video" ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
+                const maxSizeMB = type === "video" ? 500 : 50;
+                if (file.size > maxSize) {
+                    throw new Error(
+                        `❌ Ukuran file terlalu besar!\n\nMaksimal: ${maxSizeMB}MB\nFile Anda: ${(file.size / 1024 / 1024).toFixed(2)}MB`
+                    );
+                }
+
+                if (statusEl) statusEl.textContent = `Mengupload ${type === "video" ? "video" : "PDF"} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`;
+
+                const fullFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+                const filePath = `${courseId}/${fullFileName}`;
+
+                const { data: uploadData, error: uploadError } =
+                    await supabase.storage
+                        .from("materials")
+                        .upload(filePath, file, {
+                            cacheControl: "3600",
+                            upsert: false,
+                        });
+
+                if (uploadError) {
+                    console.error("=== UPLOAD ERROR DEBUG ===");
+                    console.error("Error object:", uploadError);
+                    console.error("Error message:", uploadError.message);
+                    console.error("Error status:", uploadError.status);
+                    console.error("Full error:", JSON.stringify(uploadError));
+                    console.error("========================");
+                    
+                    // Parse actual Supabase error
+                    const errorMsg = uploadError.message || "Unknown upload error";
+                    
+                    if (errorMsg.includes("Bucket") && errorMsg.includes("not found")) {
+                        throw new Error(
+                            "❌ Storage bucket 'materials' NOT FOUND\n\nFIX:\n1. Supabase Dashboard → Storage\n2. + New Bucket → Name: materials\n3. Check 'Make it public'\n4. Create → Refresh page"
+                        );
+                    }
+                    if (errorMsg.includes("policy") || errorMsg.includes("permission") || errorMsg.includes("not allowed")) {
+                        throw new Error(
+                            "❌ PERMISSION DENIED\n\nFIX:\n1. Supabase Dashboard → Storage → materials\n2. Tab Policies\n3. Check authenticated users can INSERT\n4. Or contact admin to setup RLS policies"
+                        );
+                    }
+                    if (errorMsg.includes("limit") || errorMsg.includes("Limit") || errorMsg.includes("size") || errorMsg.includes("Size")) {
+                        throw new Error(
+                            `❌ STORAGE LIMIT ERROR\n\nDetails: ${errorMsg}\n\nFIX:\n1. Check file size (yours is ${(file.size / 1024 / 1024).toFixed(2)}MB)\n2. Supabase bucket setting might be misconfigured\n3. Admin should check: Storage → materials → Settings → file_size_limit\n4. Should be at least 536870912 bytes (512MB)`
+                        );
+                    }
+                    
+                    // Default error with full message for debugging
+                    throw new Error(`❌ Upload Failed\n\nRaw Error: ${errorMsg}\n\nFile size: ${(file.size / 1024 / 1024).toFixed(2)}MB\nFile type: ${file.type || "unknown"}\nFile extension: ${fileExt}`);
+                }
+
+                const {
+                    data: { publicUrl },
+                } = supabase.storage.from("materials").getPublicUrl(filePath);
+
+                content = publicUrl;
+                if (statusEl) statusEl.textContent = "✅ File uploaded successfully";
+            }
+
+            const matId = (
+                document.getElementById("mat-id") as HTMLInputElement
+            ).value;
+            const matPayload: any = {
+                module_id: (
+                    document.getElementById("mat-mod-id") as HTMLInputElement
+                ).value,
+                title: (
+                    document.getElementById("mat-title") as HTMLInputElement
+                ).value,
+                type: type,
+                content: content,
+                duration: parseInt(
+                    (
+                        document.getElementById(
+                            "mat-duration",
+                        ) as HTMLInputElement
+                    ).value || "0",
+                ),
+                order_no: parseInt(
+                    (document.getElementById("mat-order") as HTMLInputElement)
+                        .value || "0",
+                ),
+            };
+
+            // Only include ID if it is a non-empty string.
+            if (matId && matId.trim() !== "") {
+                matPayload.id = matId;
+            }
+
+            const { error: insertError } = await (supabase as any)
+                .from("materials")
+                .upsert([matPayload]);
+
+            if (insertError) throw insertError;
+
+            closeM();
+            materialForm.reset();
+            if (statusEl) statusEl.textContent = "";
+            refresh();
+        } catch (err: any) {
+            console.error("Material submission error:", err);
+            alert("Action failed: " + err.message);
+            if (statusEl) statusEl.textContent = "❌ Error: " + err.message;
+        }
+    };
+    handleS(
+        "assignment-form",
+        "assignments",
+        () => ({
+            class_id: courseId,
+            title: (document.getElementById("ass-title") as HTMLInputElement)
+                .value,
+            description: (
+                document.getElementById("ass-desc") as HTMLTextAreaElement
+            ).value,
+            deadline:
+                (document.getElementById("ass-deadline") as HTMLInputElement)
+                    .value || null,
+        }),
+        "assignment-modal",
+    );
+    handleS(
+        "exam-form",
+        "exams",
+        () => ({
+            class_id: courseId,
+            title: (document.getElementById("ex-title") as HTMLInputElement)
+                .value,
+            duration: parseInt(
+                (document.getElementById("ex-duration") as HTMLInputElement)
+                    .value,
+            ),
+        }),
+        "exam-modal",
+    );
+
+    async function deleteItem(table: string, id: string, msg: string) {
+        if (confirm(msg)) {
+            await (supabase as any).from(table).delete().eq("id", id);
+            refresh();
+        }
+    }
+
+    refresh();
+</script>
+
+<style>
+    .builder-tabs {
+        display: flex;
+        gap: 1rem;
+        margin-bottom: 2rem;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .badge-price {
+        font-size: 0.8rem;
+        background: #dcfce7;
+        color: #166534;
+        padding: 0.2rem 0.5rem;
+        border-radius: 4px;
+        display: inline-block;
+        margin-top: 0.2rem;
+    }
+    .tab-btn {
+        background: none;
+        border: none;
+        padding: 0.75rem 1.5rem;
+        font-weight: 600;
+        color: #64748b;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+    }
+    .tab-btn.active {
+        color: #2563eb;
+        border-bottom-color: #2563eb;
+    }
+    .tab-content {
+        display: none;
+    }
+    .tab-content.active {
+        display: block;
+    }
+
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1.5rem;
+    }
+    .items-list {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+    }
+    .item-row {
+        padding: 1rem 1.5rem;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .item-row:last-child {
+        border-bottom: none;
+    }
+    .edit-mat {
+        border: none;
+        background: none;
+        cursor: pointer;
+        padding: 0.2rem;
+        margin-right: 0.5rem;
+    }
+    .delete-mat {
+        border: none;
+        background: none;
+        cursor: pointer;
+        padding: 0.2rem;
+    }
+    .danger {
+        color: #ef4444;
+        cursor: pointer;
+        background: none;
+        border: none;
+    }
+
+    .admin-container {
+        display: flex;
+        min-height: 100vh;
+        margin: -2rem;
+    }
+    .admin-sidebar {
+        width: 240px;
+        background: #1e293b;
+        color: white;
+    }
+    .admin-sidebar .brand {
+        padding: 2rem;
+        font-size: 1.25rem;
+        font-weight: 800;
+        border-bottom: 1px solid #334155;
+    }
+    .admin-sidebar nav a {
+        display: block;
+        padding: 1rem 2rem;
+        color: #94a3b8;
+        text-decoration: none;
+    }
+    .admin-sidebar nav a:hover,
+    .admin-sidebar nav a.active {
+        background: #334155;
+        color: white;
+    }
+
+    .nav-divider {
+        height: 1px;
+        background: #334155;
+        margin: 1rem 1.5rem;
+    }
+
+    .btn-create-sidebar {
+        display: block;
+        margin: 0.5rem 1.5rem;
+        padding: 0.75rem;
+        background: var(--primary-color);
+        color: white;
+        text-align: center;
+        text-decoration: none;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+        transition: background 0.2s;
+    }
+
+    .btn-create-sidebar:hover {
+        background: var(--primary-hover);
+    }
+    .admin-main {
+        flex: 1;
+        padding: 2rem 3rem;
+        background: #f8fafc;
+    }
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 2rem;
+    }
+
+    .module-card {
+        background: white;
+        border: 1px solid #e2e8f0;
+        border-radius: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    .module-header {
+        padding: 1rem;
+        background: #f8fafc;
+        display: flex;
+        justify-content: space-between;
+        border-bottom: 1px solid #e2e8f0;
+    }
+    .materials-list {
+        list-style: none;
+        padding: 0;
+    }
+    .materials-list li {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f1f5f9;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .mat-info {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+    }
+    .mat-order {
+        font-size: 0.75rem;
+        background: #f1f5f9;
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+        color: #64748b;
+    }
+
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 100;
+    }
+    /* Improved Modal Styles */
+    .modal-content {
+        background: white;
+        border-radius: 0.75rem;
+        width: 700px;
+        max-width: 95vw;
+        max-height: 90vh;
+        display: flex;
+        flex-direction: column;
+        padding: 0;
+        box-shadow:
+            0 20px 25px -5px rgba(0, 0, 0, 0.1),
+            0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        overflow: hidden;
+    }
+    .modal-header {
+        padding: 1.25rem 1.5rem;
+        border-bottom: 1px solid #e2e8f0;
+        background: #fff;
+    }
+    .modal-header h3 {
+        margin: 0;
+        font-size: 1.25rem;
+        color: #1e293b;
+    }
+    .modal-body {
+        padding: 1.5rem;
+        overflow-y: auto;
+        flex: 1;
+    }
+    .modal-footer {
+        padding: 1rem 1.5rem;
+        border-top: 1px solid #e2e8f0;
+        background: #f8fafc;
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+    }
+    /* Legacy override for other modals if they use old structure inside new container */
+    .modal-content > h3 {
+        margin: 1.5rem 1.5rem 0.5rem;
+    }
+    .modal-content > form {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        overflow: hidden; /* For new structure */
+    }
+    /* Handle legacy modals that just contain form elements directly */
+    .modal-content > form > .form-group:first-child {
+        margin-top: 1rem;
+        padding: 0 1.5rem;
+    }
+    .modal-content > form > .form-group {
+        padding: 0 1.5rem;
+    }
+    .hidden {
+        display: none;
+    }
+    .form-group {
+        margin-bottom: 1rem;
+    }
+    .form-group label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+    }
+    .form-group input,
+    .form-group select,
+    .form-group textarea {
+        width: 100%;
+        padding: 0.5rem;
+        border: 1px solid #ccc;
+        border-radius: 0.25rem;
+    }
+    .modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    .btn {
+        padding: 0.5rem 1rem;
+        border-radius: 0.25rem;
+        cursor: pointer;
+        border: none;
+    }
+    .btn-primary {
+        background: #2563eb;
+        color: white;
+    }
+    .btn-outline {
+        background: white;
+        border: 1px solid #ccc;
+    }
+    .btn-sm {
+        padding: 0.25rem 0.5rem;
+        font-size: 0.8rem;
+    }
+</style>

@@ -1,0 +1,58 @@
+---
+import Layout from "../layouts/Layout.astro";
+import AdminSidebar from "./AdminSidebar.astro";
+
+interface Props {
+    activePage: "overview" | "users" | "classes";
+    title?: string;
+}
+
+const { activePage, title = "Admin Panel" } = Astro.props;
+
+const user = Astro.locals.user;
+if (!user || user.role !== "admin") {
+    return Astro.redirect("/login");
+}
+---
+
+<Layout title={title}>
+    <div id="user-data" data-user={JSON.stringify(user)} class="hidden"></div>
+    <div class="admin-container">
+        <AdminSidebar activePage={activePage} />
+        <main class="admin-main">
+            <slot />
+        </main>
+    </div>
+</Layout>
+
+<style>
+    .admin-container {
+        display: flex;
+        min-height: calc(100vh - 150px);
+        margin: -2rem;
+    }
+
+    @media (max-width: 1024px) {
+        .admin-container {
+            flex-direction: column;
+            margin: 0;
+        }
+    }
+
+    .admin-main {
+        flex: 1;
+        padding: 2rem 3rem;
+        background: #f8fafc;
+        overflow-x: hidden;
+    }
+
+    @media (max-width: 768px) {
+        .admin-main {
+            padding: 1.5rem;
+        }
+    }
+
+    .hidden {
+        display: none;
+    }
+</style>

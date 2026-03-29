@@ -1,0 +1,989 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { supabase } from "../../lib/supabase";
+
+const { id } = Astro.params;
+export const prerender = false;
+
+const user = Astro.locals.user;
+
+if (!id) {
+    return Astro.redirect("/404");
+}
+
+// Fetch class details
+const { data: course, error: courseError }: any = await supabase
+    .from("classes")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+if (courseError || !course) {
+    console.error("Error fetching course:", courseError);
+    return Astro.redirect("/404");
+}
+
+// Fetch modules and materials
+// Note: Supabase structure for nesting depends on foreign keys.
+// Assuming foreign keys are correctly set up as per schema.sql:
+// modules.class_id -> classes.id
+// materials.module_id -> modules.id
+const { data: modules, error: modulesError }: any = await supabase
+    .from("modules")
+    .select(
+        `
+    *,
+    materials (*)
+  `,
+    )
+    .eq("class_id", id)
+    .order("order_no");
+
+// Internal sort for materials
+const sortedCourseModules = (modules || []).map((mod: any) => ({
+    ...mod,
+    materials: (mod.materials || []).sort(
+        (a: any, b: any) => (a.order_no || 0) - (b.order_no || 0),
+    ),
+}));
+
+if (modulesError) {
+    console.error("Error fetching modules:", modulesError);
+}
+
+// Fetch Exams
+const { data: courseExams, error: examsError } = await supabase
+    .from("exams")
+    .select("*")
+    .eq("class_id", id);
+
+// Prepare modules list
+const courseModules = sortedCourseModules || [];
+---
+
+<Layout>
+    <div id="user-data" data-user={JSON.stringify(user || null)} class="hidden"></div>
+    <div class="course-header">
+        <h1>{course.title}</h1>
+        <p class="description">{course.description}</p>
+        <div class="meta">
+            <span class="price"
+                >{
+                    course.price && course.price > 0
+                        ? `Biaya Masuk: Rp ${course.price.toLocaleString("id-ID")}`
+                        : "Gratis"
+                }</span
+            >
+            <button
+                id="enroll-btn"
+                class="btn btn-primary"
+                data-course-id={id}
+                data-course-price={course.price || 0}
+            >
+                Start Learning
+            </button>
+        </div>
+
+        <div
+            id="course-progress-container"
+            class="course-overall-progress hidden"
+        >
+            <div class="overall-circle-container">
+                <svg width="80" height="80" viewBox="0 0 80 80">
+                    <circle
+                        class="bg"
+                        cx="40"
+                        cy="40"
+                        r="36"
+                        fill="none"
+                        stroke="#e5e7eb"
+                        stroke-width="6"></circle>
+                    <circle
+                        id="course-progress-circle-fill"
+                        class="progress"
+                        cx="40"
+                        cy="40"
+                        r="36"
+                        fill="none"
+                        stroke="var(--primary-color)"
+                        stroke-width="6"
+                        stroke-dasharray="226.2"
+                        stroke-dashoffset="226.2"
+                        stroke-linecap="round"></circle>
+                </svg>
+                <div class="overall-progress-info">
+                    <span id="course-progress-text">0%</span>
+                    <span class="label">Selesai</span>
+                </div>
+            </div>
+            <div class="progress-meta">
+                <h3>Progress Belajar</h3>
+                <p>Teruskan belajar untuk menyelesaikan kursus ini.</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="content">
+        <div class="sidebar">
+            <h3>Course Content</h3>
+            <div class="modules-list">
+                {
+                    courseModules.length === 0 ? (
+                        <p class="empty-state">No content available yet.</p>
+                    ) : (
+                        courseModules.map((mod: any) => (
+                            <div
+                                class="module-card-student"
+                                data-module-id={mod.id}
+                                data-price={mod.price || 0}
+                            >
+                                <div class="mod-header">
+                                    <div class="mod-title-group">
+                                        <h4>{mod.title}</h4>
+                                        {mod.price > 0 && (
+                                            <span class="badge-price">
+                                                Rp{" "}
+                                                {mod.price.toLocaleString(
+                                                    "id-ID",
+                                                )}
+                                            </span>
+                                        )}
+                                    </div>
+                                    <div class="mod-status">
+                                        <div class="mod-progress-circle hidden">
+                                            <svg
+                                                width="36"
+                                                height="36"
+                                                viewBox="0 0 36 36"
+                                            >
+                                                <circle
+                                                    class="bg"
+                                                    cx="18"
+                                                    cy="18"
+                                                    r="16"
+                                                    fill="none"
+                                                    stroke="#e5e7eb"
+                                                    stroke-width="3"
+                                                />
+                                                <circle
+                                                    class="progress"
+                                                    cx="18"
+                                                    cy="18"
+                                                    r="16"
+                                                    fill="none"
+                                                    stroke="var(--primary-color)"
+                                                    stroke-width="3"
+                                                    stroke-dasharray="100.5"
+                                                    stroke-dashoffset="100.5"
+                                                    stroke-linecap="round"
+                                                />
+                                            </svg>
+                                            <span class="progress-text-sm">
+                                                0%
+                                            </span>
+                                        </div>
+                                        <span class="status-icon">
+                                            🔒 Locked
+                                        </span>
+                                        <button class="btn-sm btn-primary buy-module-btn hidden">
+                                            Unlock
+                                        </button>
+                                    </div>
+                                </div>
+                                <ul class="materials-list">
+                                    {mod.materials &&
+                                    mod.materials.length > 0 ? (
+                                        mod.materials.map((mat: any) => (
+                                            <li
+                                                class="material-item"
+                                                data-id={mat.id}
+                                            >
+                                                <span class="material-type">
+                                                    {mat.type === "video"
+                                                        ? "📺"
+                                                        : mat.type === "pdf"
+                                                          ? "📄"
+                                                          : "📝"}
+                                                </span>
+                                                <span class="material-title">
+                                                    {mat.title}
+                                                </span>
+                                                {mat.duration && (
+                                                    <span class="duration">
+                                                        {mat.duration} min
+                                                    </span>
+                                                )}
+                                            </li>
+                                        ))
+                                    ) : (
+                                        <li class="empty-material">
+                                            No materials
+                                        </li>
+                                    )}
+                                </ul>
+                            </div>
+                        ))
+                    )
+                }
+            </div>
+        </div>
+
+        <!-- Exams Section -->
+        {
+            courseExams && courseExams.length > 0 && (
+                <div class="exams-section">
+                    <h3>Exams</h3>
+                    <ul class="materials-list">
+                        {courseExams.map((exam: any) => (
+                            <li class="exam-item-link">
+                                <a
+                                    href={`/courses/${id}/exams/${exam.id}`}
+                                    class="exam-link"
+                                >
+                                    <span class="material-type">📝</span>
+                                    <span class="material-title">
+                                        {exam.title}
+                                    </span>
+                                    <span class="duration">
+                                        {exam.duration} min
+                                    </span>
+                                </a>
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )
+        }
+    </div>
+
+    <div class="main-content">
+        <div class="placeholder-viewer">
+            <h2>Select a lesson to start</h2>
+            <p>Your learning journey begins here.</p>
+        </div>
+    </div>
+</Layout>
+
+<!-- Enrollment Modal -->
+<div id="enroll-modal" class="modal hidden">
+    <div class="modal-content">
+        <h3>Unlock Module</h3>
+        <p>
+            You are about to unlock: <strong id="modal-mod-title"></strong>
+        </p>
+        <p class="price-display">
+            Price: <span id="modal-mod-price"></span>
+        </p>
+        <div class="modal-actions">
+            <button id="cancel-enroll" class="btn btn-outline">Cancel</button>
+            <button id="confirm-enroll" class="btn btn-primary"
+                >Pay & Unlock</button
+            >
+        </div>
+    </div>
+</div>
+
+<script>
+    import { supabase } from "../../lib/supabase";
+
+    async function init() {
+        const enrollBtn = document.getElementById(
+            "enroll-btn",
+        ) as HTMLButtonElement;
+        const materialItems = document.querySelectorAll(".material-item");
+
+        // Modal Elements
+        const modal = document.getElementById("enroll-modal");
+        const closeBtn = document.getElementById("cancel-enroll");
+        const confirmBtn = document.getElementById("confirm-enroll");
+        const modalTitle = document.getElementById("modal-mod-title");
+        const modalPrice = document.getElementById("modal-mod-price");
+
+        let targetModId = "";
+        let targetType = "module"; // "module" or "course"
+        let targetPrice = 0;
+
+        const courseId = enrollBtn?.dataset.courseId;
+        const coursePrice = parseFloat(enrollBtn?.dataset.coursePrice || "0");
+
+        if (!courseId) return;
+
+        const userEl = document.getElementById("user-data");
+        const userStr = userEl ? userEl.dataset.user : null;
+        let user = userStr && userStr !== "null" ? JSON.parse(userStr) : null;
+
+        // --- 1. SETUP MODAL FUNCTIONS ---
+        const openEnrollModal = (
+            id: string,
+            title: string,
+            price: number,
+            type = "module",
+        ) => {
+            if (!modal || !modalTitle || !modalPrice) return;
+            targetModId = id;
+            targetPrice = price;
+            targetType = type;
+            modalTitle.textContent = title;
+            modalPrice.textContent = `Rp ${price.toLocaleString("id-ID")}`;
+            modal.classList.remove("hidden");
+        };
+
+        if (closeBtn && modal) {
+            closeBtn.onclick = () => modal.classList.add("hidden");
+        }
+
+        if (confirmBtn && modal) {
+            confirmBtn.onclick = async () => {
+                if (!user) {
+                    window.location.href = "/login";
+                    return;
+                }
+                const btn = confirmBtn as HTMLButtonElement;
+                btn.disabled = true;
+                btn.textContent = "Processing...";
+
+                try {
+                    if (targetType === "course") {
+                        // Course Enrollment
+                        const { error: enrollError } = await (supabase as any)
+                            .from("enrollments")
+                            .insert([
+                                {
+                                    user_id: user.id,
+                                    class_id: courseId,
+                                    status: "active",
+                                },
+                            ]);
+                        if (enrollError) throw enrollError;
+                    } else {
+                        // Module Enrollment
+                        const { error: modError } = await (supabase as any)
+                            .from("module_enrollments")
+                            .insert([
+                                {
+                                    user_id: user.id,
+                                    module_id: targetModId,
+                                    class_id: courseId,
+                                    amount: targetPrice,
+                                    status: "active",
+                                },
+                            ]);
+                        if (modError) throw modError;
+                    }
+
+                    // Log to payments table
+                    await (supabase as any).from("payments").insert([
+                        {
+                            user_id: user.id,
+                            class_id: courseId,
+                            amount: targetPrice,
+                            status: "completed",
+                            paid_at: new Date().toISOString(),
+                        },
+                    ]);
+
+                    alert(
+                        targetType === "course"
+                            ? "Berhasil mendaftar kursus!"
+                            : "Modul berhasil dibuka!",
+                    );
+                    window.location.reload();
+                } catch (e: any) {
+                    console.error(e);
+                    alert("Error: " + e.message);
+                    const btn = confirmBtn as HTMLButtonElement;
+                    btn.disabled = false;
+                    btn.textContent = "Pay & Unlock";
+                }
+            };
+        }
+
+        // --- 2. FETCH USER DATA & UPDATING ENROLL BUTTON ---
+        const completedIds = new Set();
+        const purchasedModuleIds = new Set();
+        let isCourseEnrolled = false;
+
+        if (user) {
+            // A. Check Course Enrollment
+            const { data: enrollment } = await supabase
+                .from("enrollments")
+                .select("id")
+                .eq("user_id", user.id)
+                .eq("class_id", courseId)
+                .maybeSingle();
+
+            if (enrollment) isCourseEnrolled = true;
+
+            // B. Get Completed Materials
+            const { data: progress } = await supabase
+                .from("progress")
+                .select("material_id")
+                .eq("user_id", user.id)
+                .eq("completed", true);
+
+            (progress || []).forEach((p: any) =>
+                completedIds.add(p.material_id),
+            );
+
+            // C. Get Module Enrollments
+            const { data: modEnrollments } = await supabase
+                .from("module_enrollments")
+                .select("module_id")
+                .eq("user_id", user.id);
+
+            (modEnrollments || []).forEach((e: any) =>
+                purchasedModuleIds.add(e.module_id),
+            );
+        }
+
+        // --- 3. HANDLE ENROLL/START BUTTON LOGIC ---
+        if (enrollBtn) {
+            if (isCourseEnrolled) {
+                enrollBtn.textContent = "Mulai Belajar";
+                enrollBtn.onclick = (e) => {
+                    e.preventDefault();
+                    document
+                        .querySelector(".modules-list")
+                        ?.scrollIntoView({ behavior: "smooth" });
+                };
+            } else {
+                enrollBtn.textContent =
+                    coursePrice > 0 ? "Daftar" : "Daftar Gratis";
+                enrollBtn.onclick = async (e) => {
+                    e.preventDefault();
+                    if (!user) {
+                        window.location.href =
+                            "/login?redirect=" +
+                            encodeURIComponent(window.location.pathname);
+                        return;
+                    }
+                    if (coursePrice > 0) {
+                        const courseTitle =
+                            document.querySelector("h1")?.innerText || "Kursus";
+                        openEnrollModal(
+                            courseId,
+                            courseTitle,
+                            coursePrice,
+                            "course",
+                        );
+                    } else {
+                        // Auto-enroll for free courses
+                        enrollBtn.disabled = true;
+                        enrollBtn.textContent = "Mendaftarkan...";
+                        const { error } = await (supabase as any)
+                            .from("enrollments")
+                            .insert([
+                                {
+                                    user_id: user.id,
+                                    class_id: courseId,
+                                    status: "active",
+                                },
+                            ]);
+                        if (error) {
+                            alert(error.message);
+                            enrollBtn.disabled = false;
+                            enrollBtn.textContent = "Daftar Gratis";
+                        } else {
+                            window.location.reload();
+                        }
+                    }
+                };
+            }
+        }
+
+        // --- 4. RENDER MODULE STATUS & PROGRESS ---
+        const moduleCards = document.querySelectorAll(".module-card-student");
+        let prevModuleCompleted = true;
+        let totalMaterialsInCourse = 0;
+        let totalCompletedInCourse = 0;
+
+        const courseProgressContainer = document.getElementById(
+            "course-progress-container",
+        );
+        if (isCourseEnrolled)
+            courseProgressContainer?.classList.remove("hidden");
+
+        moduleCards.forEach((card) => {
+            const modCard = card as HTMLElement;
+            const modId = modCard.dataset.moduleId!;
+            const price = parseFloat(modCard.dataset.price || "0");
+            const materials = modCard.querySelectorAll(".material-item");
+
+            // Module is accessible if purchased OR if it's free AND user is enrolled in course
+            const isPurchased =
+                purchasedModuleIds.has(modId) ||
+                (price === 0 && isCourseEnrolled);
+
+            const statusIcon = modCard.querySelector(".status-icon");
+            const buyBtn = modCard.querySelector(
+                ".buy-module-btn",
+            ) as HTMLButtonElement;
+            const modProgressDiv = modCard.querySelector(".mod-progress");
+
+            let moduleCompletedCount = 0;
+            const moduleTotalCount = materials.length;
+            totalMaterialsInCourse += moduleTotalCount;
+
+            // Check materials inside
+            materials.forEach((mat) => {
+                const matItem = mat as HTMLElement;
+                const matId = matItem.dataset.id!;
+                if (completedIds.has(matId)) {
+                    matItem.classList.add("completed");
+                    moduleCompletedCount++;
+                    totalCompletedInCourse++;
+                    const title = matItem.querySelector(".material-title");
+                    if (title && !title.innerHTML.includes("✓"))
+                        title.innerHTML +=
+                            ' <span style="color: #10b981">✓</span>';
+                }
+            });
+
+            const isModuleCompleted =
+                moduleTotalCount > 0 &&
+                moduleCompletedCount === moduleTotalCount;
+
+            // Render Module Progress
+            if (isCourseEnrolled && isPurchased && moduleTotalCount > 0) {
+                const modProgressDiv = modCard.querySelector(
+                    ".mod-progress-circle",
+                );
+                modProgressDiv?.classList.remove("hidden");
+                const percent = Math.round(
+                    (moduleCompletedCount / moduleTotalCount) * 100,
+                );
+                const circle = modProgressDiv?.querySelector(
+                    "circle.progress",
+                ) as SVGCircleElement;
+                const text = modProgressDiv?.querySelector(
+                    ".progress-text-sm",
+                ) as HTMLElement;
+
+                if (circle) {
+                    const circumference = 2 * Math.PI * 16;
+                    const offset =
+                        circumference - (percent / 100) * circumference;
+                    circle.style.strokeDashoffset = offset.toString();
+                }
+                if (text) text.textContent = `${percent}%`;
+            }
+
+            // Determine Status
+            if (!isCourseEnrolled) {
+                // Not enrolled in course yet -> Lock everything
+                modCard.classList.add("locked");
+                if (statusIcon)
+                    statusIcon.textContent = "🔒 Silakan Daftar Dahulu";
+                if (buyBtn) buyBtn.classList.add("hidden");
+                materials.forEach((m) =>
+                    (m as HTMLElement).classList.add("disabled"),
+                );
+                prevModuleCompleted = false;
+            } else if (prevModuleCompleted) {
+                if (isPurchased) {
+                    modCard.classList.remove("locked");
+                    if (statusIcon) {
+                        statusIcon.textContent = isModuleCompleted
+                            ? "✓ Selesai"
+                            : "🟢 Aktif";
+                        statusIcon.className = "status-icon active";
+                    }
+                    materials.forEach((m) => {
+                        const mat = m as HTMLElement;
+                        mat.classList.remove("disabled");
+                        mat.onclick = () => {
+                            window.location.href = `/courses/${courseId}/learn/${mat.dataset.id}`;
+                        };
+                    });
+                    if (buyBtn) buyBtn.classList.add("hidden");
+                } else {
+                    modCard.classList.add("locked");
+                    if (statusIcon) statusIcon.textContent = "🔒 Terkunci";
+                    if (buyBtn) {
+                        buyBtn.classList.remove("hidden");
+                        buyBtn.textContent = `Buka Rp ${price.toLocaleString("id-ID")}`;
+                        buyBtn.onclick = (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            const title =
+                                modCard.querySelector("h4")?.innerText ||
+                                "Modul";
+                            openEnrollModal(modId, title, price, "module");
+                        };
+                    }
+                    materials.forEach((m) =>
+                        (m as HTMLElement).classList.add("disabled"),
+                    );
+                }
+            } else {
+                modCard.classList.add("locked");
+                if (statusIcon)
+                    statusIcon.textContent = "🔒 Selesaikan Modul Sebelumnya";
+                if (buyBtn) buyBtn.classList.add("hidden");
+                materials.forEach((m) =>
+                    (m as HTMLElement).classList.add("disabled"),
+                );
+            }
+
+            if (!isPurchased) prevModuleCompleted = false;
+            if (!isModuleCompleted) prevModuleCompleted = false;
+        });
+
+        // Update Overall Course Progress
+        if (isCourseEnrolled && totalMaterialsInCourse > 0) {
+            const coursePercent = Math.round(
+                (totalCompletedInCourse / totalMaterialsInCourse) * 100,
+            );
+            const courseCircle = document.getElementById(
+                "course-progress-circle-fill",
+            ) as any;
+            const courseText = document.getElementById("course-progress-text");
+
+            if (courseCircle) {
+                const circumference = 2 * Math.PI * 36;
+                const offset =
+                    circumference - (coursePercent / 100) * circumference;
+                courseCircle.style.strokeDashoffset = offset.toString();
+            }
+            if (courseText) courseText.textContent = `${coursePercent}%`;
+        }
+    }
+
+    init();
+    document.addEventListener("astro:after-swap", init);
+</script>
+
+<style>
+    .course-header {
+        background: white;
+        padding: 2rem;
+        border-radius: 0.5rem;
+        border: 1px solid var(--border-color);
+        margin-bottom: 2rem;
+    }
+
+    .course-header h1 {
+        margin-top: 0;
+    }
+
+    .description {
+        color: #4b5563;
+        line-height: 1.6;
+    }
+
+    .meta {
+        margin-top: 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1.5rem;
+        flex-wrap: wrap;
+    }
+
+    .price {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    .content {
+        display: grid;
+        grid-template-columns: 350px 1fr;
+        gap: 2rem;
+        align-items: start;
+    }
+
+    @media (max-width: 1024px) {
+        .content {
+            grid-template-columns: 1fr;
+        }
+    }
+
+    @media (max-width: 768px) {
+        .course-header {
+            padding: 1.5rem;
+        }
+        .course-header h1 {
+            font-size: 1.75rem;
+        }
+        .meta {
+            gap: 1rem;
+        }
+        .price {
+            font-size: 1.25rem;
+            width: 100%;
+        }
+        #enroll-btn {
+            width: 100%;
+        }
+        .mod-header {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 1rem;
+        }
+        .mod-status {
+            width: 100%;
+            justify-content: space-between;
+        }
+    }
+
+    .sidebar {
+        background: white;
+        border: 1px solid var(--border-color);
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+    }
+
+    .sidebar h3 {
+        margin-top: 0;
+        padding-bottom: 1rem;
+        border-bottom: 1px solid var(--border-color);
+    }
+
+    details {
+        margin-bottom: 1rem;
+        border: 1px solid #f3f4f6;
+        border-radius: 0.375rem;
+    }
+
+    summary {
+        padding: 0.75rem;
+        background-color: #f9fafb;
+        cursor: pointer;
+        font-weight: 500;
+        list-style: none; /* Hide default arrow in some browsers, but keep native behavior */
+    }
+
+    summary::-webkit-details-marker {
+        display: none;
+    }
+
+    details[open] summary {
+        border-bottom: 1px solid #f3f4f6;
+        color: var(--primary-color);
+    }
+
+    .materials-list {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+    }
+
+    .materials-list li {
+        padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f3f4f6;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+
+    .materials-list li:hover {
+        background-color: #f0fdf4;
+    }
+
+    .materials-list li:last-child {
+        border-bottom: none;
+    }
+
+    .duration {
+        margin-left: auto;
+        color: #9ca3af;
+        font-size: 0.8rem;
+    }
+
+    .module-card-student {
+        border: 1px solid #e5e7eb;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+        overflow: hidden;
+    }
+    .mod-header {
+        background: #f9fafb;
+        padding: 1rem;
+        border-bottom: 1px solid #e5e7eb;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .mod-title-group h4 {
+        margin: 0;
+        font-size: 1.1rem;
+    }
+    .badge-price {
+        font-size: 0.8rem;
+        background: #dcfce7;
+        color: #166534;
+        padding: 0.1rem 0.4rem;
+        border-radius: 4px;
+        margin-top: 0.25rem;
+        display: inline-block;
+    }
+    .mod-status {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+    .status-icon {
+        font-size: 0.9rem;
+        color: #6b7280;
+        font-weight: 500;
+    }
+    .status-icon.active {
+        color: #10b981;
+    }
+    .materials-list li.disabled {
+        opacity: 0.6;
+        pointer-events: none;
+        background: #f3f4f6;
+    }
+    
+    .exams-section {
+        margin-top: 2rem;
+        border-top: 1px solid var(--border-color);
+        padding-top: 1rem;
+    }
+    
+    .exam-link {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        width: 100%;
+        text-decoration: none;
+        color: inherit;
+    }
+    
+    .exam-item-link {
+         padding: 0.75rem 1rem;
+        border-bottom: 1px solid #f3f4f6;
+        display: flex;
+        align-items: center;
+        font-size: 0.9rem;
+        cursor: pointer;
+    }
+    .exam-item-link:hover {
+        background-color: #f0fdf4;
+    }
+        opacity: 0.5;
+        pointer-events: none;
+        background: #f3f4f6;
+    }
+
+    .modal {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+    }
+    .modal-content {
+        background: white;
+        padding: 2rem;
+        border-radius: 8px;
+        width: 100%;
+        max-width: 400px;
+    }
+    .modal.hidden {
+        display: none;
+    }
+    .price-display {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: var(--primary-color);
+        margin: 1rem 0;
+    }
+    .modal-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: flex-end;
+    }
+
+    /* Overall Circle Progress Styles */
+    .course-overall-progress {
+        margin-top: 2rem;
+        display: flex;
+        align-items: center;
+        gap: 2rem;
+        padding-top: 2rem;
+        border-top: 1px solid var(--border-color);
+    }
+    .overall-circle-container {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .overall-circle-container svg {
+        transform: rotate(-90deg);
+    }
+    .overall-circle-container .progress {
+        transition: stroke-dashoffset 0.8s ease-out;
+    }
+    .overall-progress-info {
+        position: absolute;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        line-height: 1.1;
+    }
+    #course-progress-text {
+        font-size: 1.25rem;
+        font-weight: 800;
+        color: var(--primary-color);
+    }
+    .overall-progress-info .label {
+        font-size: 0.65rem;
+        font-weight: 600;
+        color: #6b7280;
+        text-transform: uppercase;
+    }
+    .progress-meta h3 {
+        margin: 0 0 0.25rem 0;
+        font-size: 1.1rem;
+    }
+    .progress-meta p {
+        margin: 0;
+        color: #6b7280;
+        font-size: 0.9rem;
+    }
+
+    @media (max-width: 640px) {
+        .course-overall-progress {
+            flex-direction: column;
+            text-align: center;
+            gap: 1rem;
+        }
+    }
+
+    /* Circular Progress Styles */
+    .mod-progress-circle {
+        position: relative;
+        width: 36px;
+        height: 36px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .mod-progress-circle svg {
+        transform: rotate(-90deg);
+    }
+    .mod-progress-circle .progress {
+        transition: stroke-dashoffset 0.5s ease;
+    }
+    .mod-progress-circle .progress-text-sm {
+        position: absolute;
+        font-size: 0.65rem;
+        font-weight: 700;
+        color: var(--text-color);
+    }
+    .hidden {
+        display: none;
+    }
+</style>

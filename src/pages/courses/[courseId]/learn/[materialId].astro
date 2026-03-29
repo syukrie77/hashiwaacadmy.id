@@ -9,6 +9,11 @@ if (!courseId || !materialId) {
   return Astro.redirect("/404");
 }
 
+const user = Astro.locals.user;
+if (!user) {
+  return Astro.redirect("/login");
+}
+
 const { data: material, error: matError }: any = await supabase
   .from("materials")
   .select(
@@ -53,6 +58,7 @@ const sortedModules = (modules || []).map((mod: any) => ({
 ---
 
 <Layout>
+  <div id="user-data" data-user={JSON.stringify(user)} class="hidden"></div>
   <div class="learn-container">
     <aside class="sidebar">
       <div class="sidebar-header">
@@ -137,44 +143,45 @@ const sortedModules = (modules || []).map((mod: any) => ({
                     allowfullscreen
                   />
                 ) : (
-                  <video src={material.content} controls class="main-video" />
+                  <video src={material.content} controls class="main-video">
+                    <p>Browser Anda tidak mendukung pemutaran video. <a href={material.content}>Download Video</a></p>
+                  </video>
                 )}
                 <div class="actions">
-                  <button class="btn btn-primary" id="mark-complete">
+                  <button class="btn btn-primary mark-complete-btn">
                     Mark as Completed
                   </button>
                 </div>
               </div>
             ) : material.type === "pdf" ? (
               <div class="pdf-container">
-                <object
-                  data={material.content}
-                  type="application/pdf"
+                <iframe
+                  src={material.content}
                   width="100%"
                   height="800px"
-                >
-                  <p>
-                    Your browser does not support PDFs.{" "}
-                    <a href={material.content}>Download PDF</a>
-                  </p>
-                </object>
+                  style="border: 1px solid var(--border-color); border-radius: 0.5rem;"
+                  title={material.title}
+                />
+                <div class="pdf-fallback">
+                  <p>PDF tidak tampil? <a href={material.content} target="_blank" rel="noopener noreferrer" class="btn btn-outline">📥 Download PDF</a></p>
+                </div>
                 <div class="actions">
-                  <button class="btn btn-primary" id="mark-complete">
+                  <button class="btn btn-primary mark-complete-btn">
                     Mark as Completed
                   </button>
                 </div>
               </div>
             ) : (
-              <div class="text-content">
-                {material.content}
-                <div class="actions">
-                  <button class="btn btn-primary" id="mark-complete">
-                    Mark as Completed
-                  </button>
-                </div>
-              </div>
+              <div class="text-content" set:html={material.content}></div>
             )
           }
+          {material.type === "text" && (
+            <div class="actions">
+              <button class="btn btn-primary mark-complete-btn">
+                Mark as Completed
+              </button>
+            </div>
+          )}
         </div>
 
         <div class="viewer-footer">
@@ -184,14 +191,23 @@ const sortedModules = (modules || []).map((mod: any) => ({
       <!-- End secure-content -->
     </main>
   </div>
+  
+  <div
+    id="data-bridge"
+    class="hidden"
+    data-course-id={courseId}
+    data-material-id={materialId}
+  >
+  </div>
 </Layout>
 
 <script>
   import { supabase } from "../../../../lib/supabase";
 
   async function init() {
-    const userStr = localStorage.getItem("user");
-    if (!userStr) {
+    const userEl = document.getElementById("user-data");
+    const userStr = userEl ? userEl.dataset.user : null;
+    if (!userStr || userStr === "null") {
       window.location.href = "/login";
       return;
     }
@@ -202,11 +218,11 @@ const sortedModules = (modules || []).map((mod: any) => ({
       .dataset.materialId;
 
     // 1. Check Enrollment
-    const { data: enrollment } = await supabase
+    const { data: enrollment } = await (supabase as any)
       .from("enrollments")
       .select("id")
       .eq("user_id", user.id)
-      .eq("class_id", courseId)
+      .eq("class_id", courseId || "")
       .single();
 
     if (!enrollment) {
@@ -216,13 +232,13 @@ const sortedModules = (modules || []).map((mod: any) => ({
     }
 
     // 2. Fetch Progress and Lock/Unlock materials
-    const { data: progress } = await supabase
+    const { data: progress } = await (supabase as any)
       .from("progress")
       .select("material_id, completed")
       .eq("user_id", user.id)
       .eq("completed", true);
 
-    const completedIds = new Set(progress?.map((p) => p.material_id) || []);
+    const completedIds = new Set((progress as any[])?.map((p) => p.material_id) || []);
     const materialLinks = Array.from(
       document.querySelectorAll(".material-links li"),
     );
@@ -279,33 +295,33 @@ const sortedModules = (modules || []).map((mod: any) => ({
     });
 
     // 3. Mark Complete Logic
-    const markBtn = document.getElementById("mark-complete");
+    const markBtns = document.querySelectorAll(".mark-complete-btn");
     if (completedIds.has(materialId)) {
-      if (markBtn) {
-        markBtn.textContent = "Completed ✓";
-        (markBtn as HTMLButtonElement).disabled = true;
-      }
+      markBtns.forEach(btn => {
+        btn.textContent = "Completed ✓";
+        (btn as HTMLButtonElement).disabled = true;
+      });
     }
 
-    markBtn?.addEventListener("click", async () => {
-      const { error } = await supabase.from("progress").upsert(
-        {
-          user_id: user.id,
-          material_id: materialId,
-          completed: true,
-          completed_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,material_id" },
-      );
+    markBtns.forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const { error } = await (supabase.from("progress") as any).upsert(
+          {
+            user_id: user.id || "",
+            material_id: materialId || "",
+            completed: true,
+            completed_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,material_id" },
+        );
 
-      if (error) {
-        console.error(error);
-        alert("Error updating progress");
-      } else {
-        // alert("Content marked as completed!");
-        // Iterate to next lesson?
-        window.location.reload();
-      }
+        if (error) {
+          console.error(error);
+          alert("Error updating progress");
+        } else {
+          window.location.reload();
+        }
+      });
     });
   }
 
@@ -352,13 +368,6 @@ const sortedModules = (modules || []).map((mod: any) => ({
   });
 </script>
 
-<div
-  id="data-bridge"
-  class="hidden"
-  data-course-id={courseId}
-  data-material-id={materialId}
->
-</div>
 
 <style>
   .learn-container {
@@ -588,7 +597,48 @@ const sortedModules = (modules || []).map((mod: any) => ({
     border-radius: 0.5rem;
     border: 1px solid var(--border-color);
     line-height: 1.7;
-    white-space: pre-wrap;
+  }
+
+  .text-content :global(h1),
+  .text-content :global(h2),
+  .text-content :global(h3),
+  .text-content :global(h4) {
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .text-content :global(p) {
+    margin-bottom: 1rem;
+  }
+
+  .text-content :global(ul),
+  .text-content :global(ol) {
+    padding-left: 1.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .text-content :global(a) {
+    color: var(--primary-color);
+    text-decoration: underline;
+  }
+
+  .text-content :global(img) {
+    max-width: 100%;
+    border-radius: 0.5rem;
+  }
+
+  .pdf-fallback {
+    margin-top: 1rem;
+    text-align: center;
+  }
+
+  .pdf-fallback p {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    color: #6b7280;
+    font-size: 0.9rem;
   }
 
   .actions {

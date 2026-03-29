@@ -1,3 +1,16 @@
+---
+interface Props {
+	title?: string;
+	description?: string;
+}
+
+const {
+	title = "Hashiwa E-Learning",
+	description = "Hashiwa Japanese Academy — Pusat studi bahasa Jepang untuk kamu yang siap melangkah dari lokal ke global.",
+} = Astro.props;
+const user = Astro.locals.user;
+---
+
 <!doctype html>
 <html lang="en">
 	<head>
@@ -5,7 +18,11 @@
 		<meta name="viewport" content="width=device-width" />
 		<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 		<meta name="generator" content={Astro.generator} />
-		<title>Hashiwa E-Learning</title>
+		<title>{title} | Hashiwa Japanese Academy</title>
+		<meta name="description" content={description} />
+		<meta property="og:title" content={title} />
+		<meta property="og:description" content={description} />
+		<meta property="og:type" content="website" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 		<link
@@ -27,10 +44,67 @@
 					<ul class="nav-links">
 						<li><a href="/">Home</a></li>
 						<li><a href="/dashboard">Dashboard</a></li>
+						{
+							user?.role === "admin" && (
+								<li>
+									<a
+										href="/admin/dashboard"
+										style="color: #ef4444; font-weight: 700;"
+									>
+										Admin
+									</a>
+								</li>
+							)
+						}
+						{
+							user?.role === "instructor" && (
+								<li>
+									<a
+										href="/instructor/dashboard"
+										style="color: #059669; font-weight: 700;"
+									>
+										Instructor
+									</a>
+								</li>
+							)
+						}
 					</ul>
 					<div class="auth-buttons" id="nav-auth-buttons">
-						<a href="/login" class="btn btn-outline">Login</a>
-						<a href="/register" class="btn btn-primary">Sign Up</a>
+						{
+							user ? (
+								<div
+									class="user-pill-container"
+									style="display:flex; gap:10px; align-items:center;"
+								>
+									<div class="user-pill">
+										<a href="/profile" class="profile-link">
+											<span class="user-name">
+												{user.name}
+											</span>
+											<span class="user-role-tag">
+												{user.role}
+											</span>
+										</a>
+									</div>
+									<button
+										id="logout-btn"
+										class="btn btn-outline"
+										style="padding: 0.4rem 0.8rem; border-color: #ef4444; color: #ef4444; line-height: 1;"
+									>
+										Logout
+									</button>
+								</div>
+							) : (
+								<>
+									<a href="/login" class="btn btn-outline">
+										Login
+									</a>
+									<a href="/register" class="btn btn-primary">
+										Sign Up
+									</a>
+								</>
+							)
+						}
 					</div>
 				</div>
 			</nav>
@@ -39,20 +113,16 @@
 			<slot />
 		</main>
 		<script>
-			const userStr = localStorage.getItem("user");
-			console.log("Layout.astro loaded with Gold Theme");
-			const authContainer = document.getElementById("nav-auth-buttons");
-			const navLinks = document.querySelector(".nav-links");
+
 			const navContainer = document.querySelector(".nav-container");
 			const navOverlay = document.getElementById("nav-overlay");
-
-			// Mobile menu logic
 			const menuToggle = document.querySelector(".mobile-menu-toggle");
 
-			// Select all interactive elements inside the mobile menu
+			// Mobile menu logic
 			const mobileLinks = document.querySelectorAll(".nav-links a");
-			const mobileAuthButtons =
-				document.querySelectorAll(".auth-buttons a");
+			const mobileAuthButtons = document.querySelectorAll(
+				".auth-buttons a, .auth-buttons button",
+			);
 
 			function toggleMenu() {
 				menuToggle?.classList.toggle("active");
@@ -76,44 +146,29 @@
 			navOverlay?.addEventListener("click", closeMenu);
 
 			// Auto close menu when clicking links
-			mobileLinks.forEach((link) => {
-				link.addEventListener("click", closeMenu);
-			});
-			mobileAuthButtons.forEach((btn) => {
-				btn.addEventListener("click", closeMenu);
-			});
+			mobileLinks.forEach((link) =>
+				link.addEventListener("click", closeMenu),
+			);
+			mobileAuthButtons.forEach((btn) =>
+				btn.addEventListener("click", closeMenu),
+			);
 
-			if (userStr && authContainer) {
-				const user = JSON.parse(userStr);
-
-				// Added Admin link for admin users
-				if (user.role === "admin" && navLinks) {
-					const adminLi = document.createElement("li");
-					adminLi.innerHTML =
-						'<a href="/admin/dashboard" style="color: #ef4444; font-weight: 700;">Admin</a>';
-					navLinks.appendChild(adminLi);
-				}
-
-				// Added Instructor link for instructor users
-				if (user.role === "instructor" && navLinks) {
-					const instructorLi = document.createElement("li");
-					instructorLi.innerHTML =
-						'<a href="/instructor/dashboard" style="color: #059669; font-weight: 700;">Instructor</a>';
-					navLinks.appendChild(instructorLi);
-				}
-
-				authContainer.innerHTML = `
-					<div class="user-pill">
-						<a href="/profile" class="profile-link">
-							<span class="user-name">${user.name}</span>
-							<span class="user-role-tag">${user.role}</span>
-						</a>
-					</div>
-				`;
+			// Logout logic
+			const logoutBtn = document.getElementById("logout-btn");
+			if (logoutBtn) {
+				logoutBtn.addEventListener("click", async () => {
+					try {
+						await fetch("/api/auth/logout", { method: "POST" });
+						localStorage.removeItem("user"); // Cleanup old client session if any
+						window.location.href = "/";
+					} catch (e) {
+						console.error("Logout failed:", e);
+					}
+				});
 			}
 		</script>
 		<footer>
-			<p>&copy; 2024 Hashiwa E-Learning. All rights reserved.</p>
+			<p>&copy; {new Date().getFullYear()} Hashiwa E-Learning. All rights reserved.</p>
 		</footer>
 	</body>
 </html>

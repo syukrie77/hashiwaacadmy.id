@@ -1,0 +1,524 @@
+---
+import Layout from "../../../../../layouts/Layout.astro";
+const { id, submissionId } = Astro.params;
+export const prerender = false;
+
+const user = Astro.locals.user;
+if (!user || (user.role !== "instructor" && user.role !== "admin")) {
+    return Astro.redirect("/login");
+}
+---
+
+<Layout>
+    <div id="user-data" data-user={JSON.stringify(user)} class="hidden"></div>
+    <div class="page-container">
+        <div class="page-header">
+            <div>
+                <a id="back-link" href="#" class="back-link">← Kembali ke Daftar Koreksi</a>
+                <h1 id="page-title">Koreksi Jawaban</h1>
+                <p id="student-info" class="muted">Loading...</p>
+            </div>
+            <div class="header-stats">
+                <div class="score-display">
+                    <span class="score-label">Total Skor</span>
+                    <span class="score-value" id="total-score">-</span>
+                </div>
+            </div>
+        </div>
+
+        <div id="loading" class="state-msg">Memuat jawaban siswa...</div>
+
+        <div id="content" class="hidden">
+            <div id="answers-list"></div>
+
+            <div class="grading-footer">
+                <div class="footer-info">
+                    <span id="auto-grade-info" class="info-text"></span>
+                </div>
+                <div class="footer-actions">
+                    <button id="save-draft-btn" class="btn btn-outline">Simpan Draft</button>
+                    <button id="submit-grades-btn" class="btn btn-primary">✅ Submit Nilai & Kirim ke Siswa</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</Layout>
+
+<script>
+    import { supabase } from "../../../../../lib/supabase";
+
+    const pathParts = window.location.pathname.split("/");
+    // Path: /instructor/courses/[id]/grading/[submissionId]
+    // Index:  [0]      [1]      [2]   [3]   [4]       [5]
+    const courseId = pathParts[3];
+    const subId = pathParts[5];
+
+    let submissionData: any = null;
+    let questionsData: any[] = [];
+    let answersData: any[] = [];
+    let examId: string = "";
+
+    async function init() {
+        // Fetch submission with student info
+        const { data: sub, error: subError } = await supabase
+            .from("exam_submissions")
+            .select("*, users:user_id(name, email)")
+            .eq("id", subId)
+            .single();
+
+        if (subError || !sub) {
+            console.error("Submission load error:", subError);
+            document.getElementById("loading")!.textContent = "Submission tidak ditemukan. Error: " + (subError?.message || "Unknown");
+            return;
+        }
+
+        submissionData = sub;
+        examId = sub.exam_id;
+
+        const studentName = sub.users?.name || sub.users?.email || "Siswa";
+        document.getElementById("page-title")!.textContent = `Koreksi: ${studentName}`;
+        document.getElementById("student-info")!.textContent =
+            `Dikumpulkan: ${sub.submitted_at ? new Date(sub.submitted_at).toLocaleString("id-ID") : "-"}`;
+
+        document.getElementById("back-link")!.setAttribute(
+            "href", `/instructor/courses/${courseId}/grading?examId=${examId}`
+        );
+
+        // Fetch questions with options
+        let { data: questions, error: qError } = await supabase
+            .from("questions")
+            .select("*, question_options(*)")
+            .eq("exam_id", examId)
+            .order("order_no", { ascending: true });
+
+        // Fallback: if order_no doesn't exist, retry without ordering
+        if (qError && qError.message?.includes("order_no")) {
+            console.warn("order_no column missing, retrying without order");
+            const fallback = await supabase
+                .from("questions")
+                .select("*, question_options(*)")
+                .eq("exam_id", examId);
+            questions = fallback.data;
+            qError = fallback.error;
+        }
+
+        // Fallback: if question_options join fails, retry without it
+        if (qError && qError.message?.includes("question_options")) {
+            console.warn("question_options join failed, retrying without join");
+            const fallback2 = await supabase
+                .from("questions")
+                .select("*")
+                .eq("exam_id", examId);
+            questions = fallback2.data;
+            qError = fallback2.error;
+        }
+
+        if (qError) {
+            console.error("Questions load error:", qError);
+            document.getElementById("loading")!.textContent = "Gagal memuat soal. Error: " + (qError.message || "Unknown. Pastikan RLS tabel questions sudah di-fix (jalankan fix_exam_rls_for_students.sql).");
+            return;
+        }
+        questionsData = questions || [];
+
+        // Fetch student's answers
+        let { data: answers, error: aError } = await supabase
+            .from("submission_answers")
+            .select("*, question_options:selected_option_id(option_text)")
+            .eq("submission_id", subId);
+
+        // Fallback if join fails
+        if (aError && aError.message?.includes("question_options")) {
+            console.warn("submission_answers join failed, retrying without join");
+            const fallback = await supabase
+                .from("submission_answers")
+                .select("*")
+                .eq("submission_id", subId);
+            answers = fallback.data;
+            aError = fallback.error;
+        }
+
+        if (aError) {
+            console.error("Answers load error:", aError);
+            document.getElementById("loading")!.textContent = "Gagal memuat jawaban. Error: " + (aError.message || "Unknown. Pastikan RLS tabel submission_answers sudah di-fix.");
+            return;
+        }
+
+        answersData = answers || [];
+
+        document.getElementById("loading")!.classList.add("hidden");
+        document.getElementById("content")!.classList.remove("hidden");
+
+        renderAnswers();
+        updateTotalScore();
+    }
+
+    function renderAnswers() {
+        const list = document.getElementById("answers-list")!;
+
+        list.innerHTML = questionsData.map((q: any, i: number) => {
+            const answer = answersData.find((a: any) => a.question_id === q.id);
+            const type = q.type || "essay";
+            const points = q.points || 10;
+            const awardedPoints = answer?.points_awarded;
+            const feedback = answer?.feedback || "";
+
+            let studentAnswer = "";
+            let autoGradeResult = "";
+
+            if (type === "multiple_choice") {
+                const selectedOpt = q.question_options?.find((o: any) => o.id === answer?.selected_option_id);
+                const correctOpt = q.question_options?.find((o: any) => o.is_correct);
+
+                studentAnswer = selectedOpt ? selectedOpt.option_text : "(Tidak dijawab)";
+
+                if (answer?.is_correct === true) {
+                    autoGradeResult = `<span class="auto-correct">✅ Benar - Otomatis +${awardedPoints} poin</span>`;
+                } else if (answer?.is_correct === false) {
+                    autoGradeResult = `<span class="auto-wrong">❌ Salah - Jawaban benar: ${correctOpt?.option_text || "-"}</span>`;
+                }
+            } else if (type === "true_false") {
+                studentAnswer = answer?.answer_text || "(Tidak dijawab)";
+                const isCorrect = answer?.is_correct === true;
+                autoGradeResult = isCorrect
+                    ? `<span class="auto-correct">✅ Benar - Otomatis +${awardedPoints} poin</span>`
+                    : `<span class="auto-wrong">❌ Salah - Jawaban benar: ${q.correct_answer === "true" ? "Benar" : "Salah"}</span>`;
+            } else {
+                studentAnswer = answer?.answer_text || "(Tidak dijawab)";
+            }
+
+            const isEssay = type === "essay";
+            const needsManualGrade = isEssay && awardedPoints === null;
+
+            return `
+                <div class="answer-card ${isEssay ? "essay-card" : ""} ${needsManualGrade ? "needs-grading" : ""}">
+                    <div class="answer-header">
+                        <div class="answer-num">${i + 1}</div>
+                        <div class="answer-type">
+                            ${type === "multiple_choice" ? "📋 Pilihan Ganda" : type === "essay" ? "✍️ Essay" : "✅ Benar/Salah"}
+                        </div>
+                        <div class="answer-points">
+                            <span class="max-points">Maks: ${points} poin</span>
+                        </div>
+                    </div>
+
+                    <div class="question-text">${q.question}</div>
+
+                    ${type === "multiple_choice" ? `
+                        <div class="options-review">
+                            ${(q.question_options || []).map((o: any) => `
+                                <div class="opt-item ${o.is_correct ? "opt-correct" : ""} ${o.id === answer?.selected_option_id ? "opt-selected" : ""}">
+                                    ${o.is_correct ? "✅" : "○"} ${o.option_text}
+                                    ${o.id === answer?.selected_option_id ? '<span class="student-pick">← Pilihan Siswa</span>' : ""}
+                                </div>
+                            `).join("")}
+                        </div>
+                    ` : ""}
+
+                    <div class="student-answer">
+                        <label>Jawaban Siswa:</label>
+                        <div class="answer-content ${type === "essay" ? "essay-answer" : ""}">${studentAnswer}</div>
+                    </div>
+
+                    ${autoGradeResult ? `<div class="auto-grade-result">${autoGradeResult}</div>` : ""}
+
+                    ${isEssay ? `
+                        <div class="manual-grading">
+                            <div class="grade-row">
+                                <label for="points_${q.id}">Nilai (0 - ${points}):</label>
+                                <input type="number" id="points_${q.id}" class="points-input"
+                                    min="0" max="${points}" value="${awardedPoints !== null ? awardedPoints : ""}"
+                                    data-question-id="${q.id}" data-max-points="${points}" />
+                                <span class="points-suffix">/ ${points}</span>
+                            </div>
+                            <div class="feedback-row">
+                                <label for="feedback_${q.id}">Feedback / Komentar:</label>
+                                <textarea id="feedback_${q.id}" class="feedback-input"
+                                    rows="2" placeholder="Tulis feedback untuk jawaban ini..."
+                                    data-question-id="${q.id}">${feedback}</textarea>
+                            </div>
+                        </div>
+                    ` : `
+                        <div class="mcq-feedback">
+                            <label>Feedback (opsional):</label>
+                            <textarea id="feedback_${q.id}" class="feedback-input"
+                                rows="2" placeholder="Tambahkan komentar..."
+                                data-question-id="${q.id}">${feedback}</textarea>
+                        </div>
+                    `}
+                </div>
+            `;
+        }).join("");
+
+        // Add event listeners for score inputs
+        document.querySelectorAll(".points-input").forEach((input) => {
+            (input as HTMLInputElement).oninput = () => updateTotalScore();
+        });
+    }
+
+    function updateTotalScore() {
+        let totalAwarded = 0;
+        let totalMax = 0;
+        let allGraded = true;
+
+        questionsData.forEach((q: any) => {
+            const maxPts = q.points || 10;
+            totalMax += maxPts;
+
+            const answer = answersData.find((a: any) => a.question_id === q.id);
+            const isEssay = q.type === "essay";
+
+            if (isEssay) {
+                const input = document.getElementById(`points_${q.id}`) as HTMLInputElement;
+                const val = input?.value;
+                if (val !== "" && val !== null) {
+                    totalAwarded += Math.min(parseFloat(val), maxPts);
+                } else {
+                    allGraded = false;
+                }
+            } else {
+                // MCQ/TF - auto graded
+                if (answer?.points_awarded !== null && answer?.points_awarded !== undefined) {
+                    totalAwarded += answer.points_awarded;
+                }
+            }
+        });
+
+        const percentage = totalMax > 0 ? Math.round((totalAwarded / totalMax) * 100) : 0;
+        document.getElementById("total-score")!.textContent = `${percentage}%`;
+
+        const autoInfo = document.getElementById("auto-grade-info")!;
+        if (allGraded) {
+            autoInfo.innerHTML = `✅ Semua soal sudah dinilai. Total: <strong>${totalAwarded}/${totalMax}</strong>`;
+        } else {
+            autoInfo.innerHTML = `⏳ Masih ada soal essay yang belum dinilai. Terisi: <strong>${totalAwarded}/${totalMax}</strong>`;
+        }
+    }
+
+    // Save draft
+    document.getElementById("save-draft-btn")!.onclick = async () => {
+        await saveGrades(false);
+    };
+
+    // Submit final grades
+    document.getElementById("submit-grades-btn")!.onclick = async () => {
+        // Check if all essay questions are graded
+        let allGraded = true;
+        for (const q of questionsData) {
+            if (q.type === "essay") {
+                const input = document.getElementById(`points_${q.id}`) as HTMLInputElement;
+                if (!input?.value && input?.value !== "0") {
+                    allGraded = false;
+                    break;
+                }
+            }
+        }
+
+        if (!allGraded) {
+            if (!confirm("Masih ada soal essay yang belum dinilai. Yakin ingin submit? Soal yang belum dinilai akan mendapat 0 poin.")) {
+                return;
+            }
+        } else {
+            if (!confirm("Submit nilai ini? Siswa akan bisa melihat hasilnya di dashboard.")) {
+                return;
+            }
+        }
+
+        await saveGrades(true);
+    };
+
+    async function saveGrades(isFinal: boolean) {
+        const btn = isFinal
+            ? document.getElementById("submit-grades-btn")! as HTMLButtonElement
+            : document.getElementById("save-draft-btn")! as HTMLButtonElement;
+        btn.textContent = "Menyimpan...";
+        btn.disabled = true;
+
+        try {
+            // Update each answer
+            for (const q of questionsData) {
+                const answer = answersData.find((a: any) => a.question_id === q.id);
+                if (!answer) continue;
+
+                const feedbackEl = document.getElementById(`feedback_${q.id}`) as HTMLTextAreaElement;
+                const feedback = feedbackEl?.value || "";
+
+                if (q.type === "essay") {
+                    const pointsEl = document.getElementById(`points_${q.id}`) as HTMLInputElement;
+                    const pts = pointsEl?.value ? parseFloat(pointsEl.value) : null;
+                    const maxPts = q.points || 10;
+
+                    const updateData: any = {
+                        feedback: feedback || null,
+                    };
+
+                    if (pts !== null) {
+                        updateData.points_awarded = Math.min(pts, maxPts);
+                        updateData.is_correct = pts >= maxPts * 0.5; // Consider correct if >= 50%
+                    }
+
+                    await supabase
+                        .from("submission_answers")
+                        .update(updateData)
+                        .eq("id", answer.id);
+                } else {
+                    // MCQ/TF - just save feedback
+                    if (feedback) {
+                        await supabase
+                            .from("submission_answers")
+                            .update({ feedback })
+                            .eq("id", answer.id);
+                    }
+                }
+            }
+
+            if (isFinal) {
+                // Calculate final score
+                let totalAwarded = 0;
+                let totalMax = 0;
+
+                for (const q of questionsData) {
+                    const maxPts = q.points || 10;
+                    totalMax += maxPts;
+                    const answer = answersData.find((a: any) => a.question_id === q.id);
+
+                    if (q.type === "essay") {
+                        const pointsEl = document.getElementById(`points_${q.id}`) as HTMLInputElement;
+                        const pts = pointsEl?.value ? parseFloat(pointsEl.value) : 0;
+                        totalAwarded += Math.min(pts, maxPts);
+                    } else {
+                        totalAwarded += answer?.points_awarded || 0;
+                    }
+                }
+
+                const finalScore = totalMax > 0 ? Math.round((totalAwarded / totalMax) * 100) : 0;
+
+                // Update submission status
+                await supabase
+                    .from("exam_submissions")
+                    .update({
+                        status: "graded",
+                        score: finalScore,
+                        graded_at: new Date().toISOString(),
+                        graded_by: (JSON.parse((document.getElementById("user-data") as HTMLElement).dataset.user || "{}")).id,
+                    })
+                    .eq("id", subId);
+
+                // Insert/update result
+                await supabase
+                    .from("results")
+                    .upsert({
+                        exam_id: examId,
+                        user_id: submissionData.user_id,
+                        score: finalScore,
+                    }, { onConflict: "exam_id, user_id" });
+
+                alert(`Nilai berhasil disubmit! Skor akhir: ${finalScore}%`);
+            } else {
+                alert("Draft berhasil disimpan.");
+            }
+
+            window.location.href = `/instructor/courses/${courseId}/grading?examId=${examId}`;
+        } catch (err: any) {
+            alert("Error: " + (err.message || "Gagal menyimpan"));
+            btn.disabled = false;
+            btn.textContent = isFinal ? "✅ Submit Nilai & Kirim ke Siswa" : "Simpan Draft";
+        }
+    }
+
+    init();
+</script>
+
+<style>
+    .page-container { max-width: 900px; margin: 0 auto; padding: 2rem; }
+    .page-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 2rem; flex-wrap: wrap; gap: 1rem; }
+    .page-header h1 { margin: 0.5rem 0 0 0; font-size: 1.5rem; }
+    .back-link { color: #6b7280; text-decoration: none; font-size: 0.875rem; }
+    .muted { color: #6b7280; margin: 0; }
+    .state-msg { text-align: center; padding: 3rem; color: #6b7280; }
+    .hidden { display: none !important; }
+
+    .header-stats { display: flex; gap: 1rem; }
+    .score-display { text-align: center; }
+    .score-label { display: block; font-size: 0.75rem; color: #64748b; text-transform: uppercase; }
+    .score-value { font-size: 2rem; font-weight: 800; color: #2563eb; }
+
+    .answer-card {
+        background: white; border: 1px solid #e2e8f0; border-radius: 0.75rem;
+        padding: 1.5rem; margin-bottom: 1.5rem; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .answer-card.needs-grading { border-left: 4px solid #f59e0b; }
+    .answer-card.essay-card { border-left-color: #6366f1; }
+
+    .answer-header { display: flex; align-items: center; gap: 1rem; margin-bottom: 1rem; }
+    .answer-num {
+        background: #2563eb; color: white; width: 32px; height: 32px;
+        border-radius: 50%; display: flex; align-items: center; justify-content: center;
+        font-weight: 700; font-size: 0.875rem; flex-shrink: 0;
+    }
+    .answer-type { background: #dbeafe; color: #1e40af; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .answer-points { margin-left: auto; }
+    .max-points { font-weight: 600; color: #64748b; font-size: 0.875rem; }
+
+    .question-text { font-size: 1rem; font-weight: 600; color: #1e293b; line-height: 1.6; margin-bottom: 1rem; }
+
+    .options-review { margin-bottom: 1rem; }
+    .opt-item {
+        padding: 0.5rem 0.75rem; border-radius: 0.375rem; font-size: 0.875rem;
+        margin-bottom: 0.25rem; background: #f8fafc; display: flex; align-items: center; gap: 0.5rem;
+    }
+    .opt-item.opt-correct { background: #dcfce7; color: #166534; }
+    .opt-item.opt-selected { outline: 2px solid #2563eb; }
+    .student-pick { font-size: 0.7rem; color: #2563eb; font-weight: 600; margin-left: auto; }
+
+    .student-answer { margin-bottom: 1rem; }
+    .student-answer label { display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.375rem; text-transform: uppercase; }
+    .answer-content {
+        padding: 0.75rem 1rem; background: #f8fafc; border-radius: 0.5rem;
+        font-size: 0.9rem; color: #1e293b; line-height: 1.6;
+    }
+    .answer-content.essay-answer {
+        background: #eff6ff; border: 1px solid #bfdbfe; min-height: 80px;
+        white-space: pre-wrap;
+    }
+
+    .auto-grade-result { margin-bottom: 1rem; padding: 0.5rem 0.75rem; border-radius: 0.375rem; font-size: 0.85rem; font-weight: 500; }
+    .auto-correct { color: #166534; background: #dcfce7; padding: 0.375rem 0.75rem; border-radius: 0.375rem; display: inline-block; }
+    .auto-wrong { color: #991b1b; background: #fee2e2; padding: 0.375rem 0.75rem; border-radius: 0.375rem; display: inline-block; }
+
+    .manual-grading {
+        background: #fefce8; border: 1px solid #fde68a; border-radius: 0.5rem;
+        padding: 1rem; margin-top: 0.5rem;
+    }
+    .grade-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem; }
+    .grade-row label { font-size: 0.85rem; font-weight: 600; color: #374151; min-width: 120px; }
+    .points-input {
+        width: 80px; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;
+        font-size: 1rem; font-weight: 700; text-align: center;
+    }
+    .points-suffix { font-size: 0.85rem; color: #64748b; }
+    .feedback-row label { display: block; font-size: 0.85rem; font-weight: 600; color: #374151; margin-bottom: 0.375rem; }
+    .feedback-input {
+        width: 100%; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem;
+        font-family: inherit; font-size: 0.875rem; box-sizing: border-box;
+    }
+
+    .mcq-feedback { margin-top: 0.5rem; }
+    .mcq-feedback label { display: block; font-size: 0.8rem; font-weight: 600; color: #64748b; margin-bottom: 0.25rem; }
+
+    .grading-footer {
+        position: sticky; bottom: 0; background: white; border-top: 2px solid #e2e8f0;
+        padding: 1rem 0; display: flex; justify-content: space-between; align-items: center;
+        margin-top: 2rem; flex-wrap: wrap; gap: 1rem;
+    }
+    .footer-info { flex: 1; }
+    .info-text { font-size: 0.9rem; color: #374151; }
+    .footer-actions { display: flex; gap: 0.75rem; }
+
+    .btn { padding: 0.625rem 1.25rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; border: none; font-size: 0.875rem; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+    .btn-outline { background: white; border: 1px solid #d1d5db; color: #374151; }
+    .btn-outline:hover { background: #f9fafb; }
+    .btn-outline:disabled { background: #f1f5f9; cursor: not-allowed; }
+</style>

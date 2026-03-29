@@ -2,12 +2,18 @@
 import Layout from "../../../../layouts/Layout.astro";
 const { id } = Astro.params;
 export const prerender = false;
+
+const user = Astro.locals.user;
+if (!user || user.role !== "admin") {
+    return Astro.redirect("/login");
+}
 ---
 
 <script
     src="https://cdn.tiny.cloud/1/zw0yo6gdvindf5fnz6xdlxsj3915hecnselxs4f4sdzoo868/tinymce/6/tinymce.min.js"
     referrerpolicy="origin"></script>
 <Layout>
+    <div id="user-data" data-user={JSON.stringify(user)} class="hidden"></div>
     <div class="admin-container">
         <aside class="admin-sidebar">
             <div class="brand">Admin Panel</div>
@@ -209,13 +215,31 @@ export const prerender = false;
         <div class="modal-content">
             <h3>Add Exam</h3>
             <form id="exam-form">
+                <input type="hidden" id="ex-id" />
                 <div class="form-group">
                     <label>Title</label>
                     <input type="text" id="ex-title" required />
                 </div>
                 <div class="form-group">
-                    <label>Duration (minutes)</label>
-                    <input type="number" id="ex-duration" value="60" />
+                    <label>Description / Instructions</label>
+                    <textarea id="ex-desc" rows="3" placeholder="Instruksi untuk siswa..."></textarea>
+                </div>
+                <div class="form-row-exam">
+                    <div class="form-group">
+                        <label>Duration (minutes)</label>
+                        <input type="number" id="ex-duration" value="60" min="5" />
+                    </div>
+                    <div class="form-group">
+                        <label>Passing Score (%)</label>
+                        <input type="number" id="ex-passing" value="60" min="0" max="100" />
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label class="toggle-label-exam">
+                        <input type="checkbox" id="ex-published" checked />
+                        <span class="toggle-switch-exam"></span>
+                        <span>Publish sekarang (siswa bisa melihat & mengerjakan)</span>
+                    </label>
                 </div>
                 <div class="modal-actions">
                     <button type="button" class="btn btn-outline closeModal"
@@ -236,7 +260,8 @@ export const prerender = false;
     const pathParts = window.location.pathname.split("/");
     const courseId = pathParts[pathParts.length - 2];
 
-    const userStr = localStorage.getItem("user");
+    const userEl = document.getElementById("user-data");
+    const userStr = userEl ? userEl.dataset.user : null;
     if (!userStr || JSON.parse(userStr).role !== "admin") {
         window.location.href = "/login";
     }
@@ -523,19 +548,33 @@ export const prerender = false;
             (data.exams || [])
                 .map(
                     (ex: any) => `
-            <div class="item-row">
+            <div class="item-row exam-row">
                 <div class="item-info">
                     <h4>${ex.title}</h4>
-                    <span class="muted">Duration: ${ex.duration} mins</span>
+                    <span class="muted">Duration: ${ex.duration} mins · Passing: ${ex.passing_score || 60}%</span>
                 </div>
-                <div class="actions">
-                    <a href="/admin/courses/${courseId}/exams/${ex.id}" class="btn-sm btn-outline">Edit Questions</a>
+                <div class="exam-actions-row">
+                    <span class="exam-status-badge ${ex.is_published ? "published" : "draft"}">${ex.is_published ? "✅ Published" : "🔒 Draft"}</span>
+                    <button class="btn-sm btn-outline toggle-publish-ex" data-id="${ex.id}" data-published="${!!ex.is_published}">${ex.is_published ? "Unpublish" : "Publish"}</button>
+                    <a href="/instructor/courses/${courseId}/exams/${ex.id}" class="btn-sm btn-outline">📝 Questions</a>
                     <button class="btn-sm danger delete-ex" data-id="${ex.id}">Delete</button>
                 </div>
             </div>
         `,
                 )
                 .join("") || '<div class="empty-state">No exams yet.</div>';
+
+        document.querySelectorAll(".toggle-publish-ex").forEach((btn) => {
+            (btn as any).onclick = async () => {
+                const id = (btn as any).dataset.id;
+                const current = (btn as any).dataset.published === "true";
+                const { error } = await (supabase as any)
+                    .from("exams")
+                    .update({ is_published: !current })
+                    .eq("id", id);
+                if (!error) refresh();
+            };
+        });
 
         document
             .querySelectorAll(".delete-ex")
@@ -728,24 +767,82 @@ export const prerender = false;
         try {
             if (type !== "text" && fileInput.files?.length) {
                 const file = fileInput.files[0];
-                const fileExt = file.name.split(".").pop();
-                const fileName = `${Math.random()}.${fileExt}`;
-                const filePath = `${courseId}/${fileName}`;
+                
+                // Get file extension
+                const fileName = file.name.toLowerCase();
+                const fileExt = fileName.split(".").pop() || "unknown";
 
-                if (statusEl) statusEl.textContent = "Uploading file...";
+                // Validate file type
+                const validVideoTypes = ["video/mp4", "video/webm", "video/ogg", "video/quicktime"];
+                const validVideoExts = ["mp4", "webm", "ogg", "mov", "avi", "mkv"];
+                const validPdfTypes = ["application/pdf"];
+                const validPdfExts = ["pdf"];
+
+                if (type === "video") {
+                    if (!validVideoTypes.includes(file.type) && !validVideoExts.includes(fileExt)) {
+                        throw new Error(
+                            `❌ Format video tidak valid.\n\nFormat yang didukung: MP4, WebM, OGG, MOV\nFile Anda: ${file.type || fileExt}`
+                        );
+                    }
+                } else if (type === "pdf") {
+                    if (!validPdfTypes.includes(file.type) && !validPdfExts.includes(fileExt)) {
+                        throw new Error(
+                            `❌ Format file bukan PDF.\n\nFile Anda: ${file.type || fileExt}`
+                        );
+                    }
+                }
+
+                // Validate file size (500MB for video, 50MB for PDF)
+                const maxSize = type === "video" ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
+                const maxSizeMB = type === "video" ? 500 : 50;
+                if (file.size > maxSize) {
+                    throw new Error(
+                        `❌ Ukuran file terlalu besar!\n\nMaksimal: ${maxSizeMB}MB\nFile Anda: ${(file.size / 1024 / 1024).toFixed(2)}MB`
+                    );
+                }
+
+                if (statusEl) statusEl.textContent = `Mengupload ${type === "video" ? "video" : "PDF"} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`;
+
+                const fullFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
+                const filePath = `${courseId}/${fullFileName}`;
 
                 const { data: uploadData, error: uploadError } =
                     await supabase.storage
                         .from("materials")
-                        .upload(filePath, file);
+                        .upload(filePath, file, {
+                            cacheControl: "3600",
+                            upsert: false,
+                        });
 
                 if (uploadError) {
-                    if (uploadError.message.includes("Bucket not found")) {
+                    console.error("=== UPLOAD ERROR DEBUG ===");
+                    console.error("Error object:", uploadError);
+                    console.error("Error message:", uploadError.message);
+                    console.error("Error status:", uploadError.status);
+                    console.error("Full error:", JSON.stringify(uploadError));
+                    console.error("========================");
+                    
+                    // Parse actual Supabase error
+                    const errorMsg = uploadError.message || "Unknown upload error";
+                    
+                    if (errorMsg.includes("Bucket") && errorMsg.includes("not found")) {
                         throw new Error(
-                            "Storage bucket 'materials' not found. Please create it in Supabase Dashboard with PUBLIC access.",
+                            "❌ Storage bucket 'materials' NOT FOUND\n\nFIX:\n1. Supabase Dashboard → Storage\n2. + New Bucket → Name: materials\n3. Check 'Make it public'\n4. Create → Refresh page"
                         );
                     }
-                    throw uploadError;
+                    if (errorMsg.includes("policy") || errorMsg.includes("permission") || errorMsg.includes("not allowed")) {
+                        throw new Error(
+                            "❌ PERMISSION DENIED\n\nFIX:\n1. Supabase Dashboard → Storage → materials\n2. Tab Policies\n3. Check authenticated users can INSERT\n4. Or contact admin to setup RLS policies"
+                        );
+                    }
+                    if (errorMsg.includes("limit") || errorMsg.includes("Limit") || errorMsg.includes("size") || errorMsg.includes("Size")) {
+                        throw new Error(
+                            `❌ STORAGE LIMIT ERROR\n\nDetails: ${errorMsg}\n\nFIX:\n1. Check file size (yours is ${(file.size / 1024 / 1024).toFixed(2)}MB)\n2. Supabase bucket setting might be misconfigured\n3. Admin should check: Storage → materials → Settings → file_size_limit\n4. Should be at least 536870912 bytes (512MB)`
+                        );
+                    }
+                    
+                    // Default error with full message for debugging
+                    throw new Error(`❌ Upload Failed\n\nRaw Error: ${errorMsg}\n\nFile size: ${(file.size / 1024 / 1024).toFixed(2)}MB\nFile type: ${file.type || "unknown"}\nFile extension: ${fileExt}`);
                 }
 
                 const {
@@ -753,6 +850,7 @@ export const prerender = false;
                 } = supabase.storage.from("materials").getPublicUrl(filePath);
 
                 content = publicUrl;
+                if (statusEl) statusEl.textContent = "✅ File uploaded successfully";
             }
 
             const matId = (
@@ -796,9 +894,9 @@ export const prerender = false;
             if (statusEl) statusEl.textContent = "";
             refresh();
         } catch (err: any) {
-            console.error(err);
+            console.error("Material submission error:", err);
             alert("Action failed: " + err.message);
-            if (statusEl) statusEl.textContent = "Error: " + err.message;
+            if (statusEl) statusEl.textContent = "❌ Error: " + err.message;
         }
     };
     handleS(
@@ -822,12 +920,18 @@ export const prerender = false;
         "exams",
         () => ({
             class_id: courseId,
+            id: (document.getElementById("ex-id") as HTMLInputElement).value || undefined,
             title: (document.getElementById("ex-title") as HTMLInputElement)
                 .value,
+            description: (document.getElementById("ex-desc") as HTMLTextAreaElement).value || null,
             duration: parseInt(
                 (document.getElementById("ex-duration") as HTMLInputElement)
                     .value,
             ),
+            passing_score: parseInt(
+                (document.getElementById("ex-passing") as HTMLInputElement).value,
+            ) || 60,
+            is_published: (document.getElementById("ex-published") as HTMLInputElement).checked,
         }),
         "exam-modal",
     );
@@ -1084,7 +1188,11 @@ export const prerender = false;
         margin-top: 1rem;
         padding: 0 1.5rem;
     }
-    .modal-content > form > .form-group {
+    .modal-content > form > .form-group,
+    .modal-content > form > .form-row-exam {
+        padding: 0 1.5rem;
+    }
+    .modal-content > form > .modal-actions {
         padding: 0 1.5rem;
     }
     .hidden {
@@ -1129,5 +1237,75 @@ export const prerender = false;
     .btn-sm {
         padding: 0.25rem 0.5rem;
         font-size: 0.8rem;
+    }
+    /* Exam modal extras */
+    .form-row-exam {
+        display: flex;
+        gap: 1rem;
+    }
+    .form-row-exam .form-group {
+        flex: 1;
+    }
+    .toggle-label-exam {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        cursor: pointer;
+        font-weight: 400 !important;
+    }
+    .toggle-label-exam input[type="checkbox"] {
+        display: none;
+    }
+    .toggle-switch-exam {
+        width: 44px;
+        height: 24px;
+        background: #d1d5db;
+        border-radius: 12px;
+        position: relative;
+        transition: background 0.2s;
+        flex-shrink: 0;
+    }
+    .toggle-switch-exam::after {
+        content: "";
+        width: 20px;
+        height: 20px;
+        background: white;
+        border-radius: 50%;
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        transition: transform 0.2s;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.15);
+    }
+    .toggle-label-exam input:checked + .toggle-switch-exam {
+        background: #2563eb;
+    }
+    .toggle-label-exam input:checked + .toggle-switch-exam::after {
+        transform: translateX(20px);
+    }
+    /* Exam list status */
+    .exam-row {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    .exam-actions-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        flex-wrap: wrap;
+    }
+    .exam-status-badge {
+        font-size: 0.75rem;
+        font-weight: 600;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+    }
+    .exam-status-badge.published {
+        background: #dcfce7;
+        color: #166534;
+    }
+    .exam-status-badge.draft {
+        background: #fef3c7;
+        color: #92400e;
     }
 </style>

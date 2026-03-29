@@ -1,0 +1,114 @@
+---
+interface Props {
+    activePage: "overview" | "users" | "classes";
+}
+
+const { activePage } = Astro.props;
+---
+
+<aside class="admin-sidebar">
+    <div class="brand">Admin Panel</div>
+    <nav>
+        <a href="/admin/dashboard" class={activePage === "overview" ? "active" : ""}>Overview</a>
+        <a href="/admin/users" class={activePage === "users" ? "active" : ""}>Users</a>
+        <a href="/admin/classes" class={activePage === "classes" ? "active" : ""}>Course Management</a>
+        <div class="nav-divider"></div>
+        <a href="/admin/courses/new" class="btn-create-sidebar">+ New Course</a>
+    </nav>
+    <div class="footer">
+        <a href="/dashboard">← Kembali ke Dashboard</a>
+    </div>
+</aside>
+
+<style>
+    .admin-sidebar {
+        width: 240px;
+        background: #1e293b;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        flex-shrink: 0;
+    }
+
+    .admin-sidebar .brand {
+        padding: 2rem;
+        font-size: 1.25rem;
+        font-weight: 800;
+        border-bottom: 1px solid #334155;
+    }
+
+    .admin-sidebar nav {
+        flex: 1;
+        padding: 1rem 0;
+    }
+
+    .admin-sidebar nav a {
+        display: block;
+        padding: 1rem 2rem;
+        color: #94a3b8;
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+
+    .admin-sidebar nav a:hover,
+    .admin-sidebar nav a.active {
+        background: #334155;
+        color: white;
+    }
+
+    .nav-divider {
+        height: 1px;
+        background: #334155;
+        margin: 1rem 1.5rem;
+    }
+
+    .btn-create-sidebar {
+        display: block;
+        margin: 0.5rem 1.5rem !important;
+        padding: 0.75rem !important;
+        background: var(--primary-color) !important;
+        color: white !important;
+        text-align: center;
+        text-decoration: none;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        font-size: 0.875rem;
+        transition: background 0.2s;
+    }
+
+    .btn-create-sidebar:hover {
+        background: var(--primary-hover) !important;
+    }
+
+    .admin-sidebar .footer {
+        padding: 1rem;
+        border-top: 1px solid #334155;
+    }
+
+    .admin-sidebar .footer a {
+        color: #94a3b8;
+        font-size: 0.8rem;
+        text-decoration: none;
+    }
+
+    @media (max-width: 1024px) {
+        .admin-sidebar {
+            width: 100%;
+        }
+        .admin-sidebar .brand {
+            padding: 1rem;
+        }
+        .admin-sidebar nav {
+            display: flex;
+            flex-wrap: wrap;
+            padding: 0.5rem;
+        }
+        .admin-sidebar nav a {
+            padding: 0.5rem 1rem;
+            font-size: 0.8rem;
+        }
+        .btn-create-sidebar {
+            margin: 0.5rem !important;
+        }
+    }
+</style>

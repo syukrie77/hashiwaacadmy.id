@@ -1,0 +1,137 @@
+<!-- Modals -->
+<div id="module-modal" class="modal hidden">
+    <div class="modal-content">
+        <h3 id="modal-title">Add Module</h3>
+        <form id="module-form">
+            <input type="hidden" id="module-id" />
+            <div class="form-group">
+                <label>Module Title</label>
+                <input type="text" id="m-title" required />
+            </div>
+            <div class="form-group">
+                <label>Harga Modul (Rp)</label>
+                <input type="number" id="m-price" placeholder="0 = Gratis" />
+            </div>
+            <div class="form-group">
+                <label>Order No</label>
+                <input type="number" id="m-order" value="0" />
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline closeModal">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    Save Module
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="material-modal" class="modal hidden">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>Tambah Materi</h3>
+        </div>
+        <form id="material-form">
+            <div class="modal-body">
+                <input type="hidden" id="mat-id" />
+                <!-- ID for the material itself -->
+                <input type="hidden" id="mat-mod-id" />
+                <!-- Foreign Key to Module -->
+                <div class="form-group">
+                    <label>Judul Materi</label>
+                    <input type="text" id="mat-title" required />
+                </div>
+                <div class="form-group">
+                    <label>Tipe</label>
+                    <select id="mat-type">
+                        <option value="video">Video</option>
+                        <option value="text">Content (Text/Article)</option>
+                        <option value="pdf">PDF Document</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label>Content (Text/Article)</label>
+                    <textarea
+                        id="mat-content"
+                        rows="4"
+                        placeholder="Enter text content here..."></textarea>
+                </div>
+                <div class="form-group" id="file-upload-group">
+                    <label id="file-label">Upload File (Video/PDF)</label>
+                    <input type="file" id="mat-file" accept="video/*,.pdf" />
+                    <div id="upload-status" class="muted"></div>
+                </div>
+                <div class="form-group">
+                    <label>Urutan</label>
+                    <input type="number" id="mat-order" value="0" />
+                </div>
+                <div class="form-group">
+                    <label>Durasi (menit)</label>
+                    <input type="number" id="mat-duration" value="0" />
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline closeModal">
+                    Batal
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    Simpan Materi
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="assignment-modal" class="modal hidden">
+    <div class="modal-content">
+        <h3>Add Assignment</h3>
+        <form id="assignment-form">
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" id="ass-title" required />
+            </div>
+            <div class="form-group">
+                <label>Description</label>
+                <textarea id="ass-desc" rows="4"></textarea>
+            </div>
+            <div class="form-group">
+                <label>Deadline</label>
+                <input type="datetime-local" id="ass-deadline" />
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline closeModal">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    Save Assignment
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<div id="exam-modal" class="modal hidden">
+    <div class="modal-content">
+        <h3>Add Exam</h3>
+        <form id="exam-form">
+            <div class="form-group">
+                <label>Title</label>
+                <input type="text" id="ex-title" required />
+            </div>
+            <div class="form-group">
+                <label>Duration (minutes)</label>
+                <input type="number" id="ex-duration" value="60" />
+            </div>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-outline closeModal">
+                    Cancel
+                </button>
+                <button type="submit" class="btn btn-primary">
+                    Save Exam
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

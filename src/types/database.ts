@@ -221,19 +221,28 @@ export interface Database {
                     id: string
                     class_id: string
                     title: string
+                    description: string | null
                     duration: number | null
+                    passing_score: number | null
+                    is_published: boolean | null
                 }
                 Insert: {
                     id?: string
                     class_id: string
                     title: string
+                    description?: string | null
                     duration?: number | null
+                    passing_score?: number | null
+                    is_published?: boolean | null
                 }
                 Update: {
                     id?: string
                     class_id?: string
                     title?: string
+                    description?: string | null
                     duration?: number | null
+                    passing_score?: number | null
+                    is_published?: boolean | null
                 }
             }
             questions: {
@@ -297,6 +306,8 @@ export interface Database {
                     score: number | null
                     started_at: string
                     submitted_at: string | null
+                    graded_at: string | null
+                    graded_by: string | null
                 }
                 Insert: {
                     id?: string
@@ -306,6 +317,8 @@ export interface Database {
                     score?: number | null
                     started_at?: string
                     submitted_at?: string | null
+                    graded_at?: string | null
+                    graded_by?: string | null
                 }
                 Update: {
                     id?: string
@@ -315,6 +328,8 @@ export interface Database {
                     score?: number | null
                     started_at?: string
                     submitted_at?: string | null
+                    graded_at?: string | null
+                    graded_by?: string | null
                 }
             }
             submission_answers: {
@@ -416,6 +431,35 @@ export interface Database {
                     class_id?: string
                     file_url?: string | null
                     issued_at?: string
+                }
+            }
+            module_enrollments: {
+                Row: {
+                    id: string
+                    user_id: string
+                    module_id: string
+                    class_id: string
+                    amount: number
+                    status: string
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    user_id: string
+                    module_id: string
+                    class_id: string
+                    amount?: number
+                    status?: string
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    user_id?: string
+                    module_id?: string
+                    class_id?: string
+                    amount?: number
+                    status?: string
+                    created_at?: string
                 }
             }
         }
