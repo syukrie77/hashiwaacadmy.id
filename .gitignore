@@ -15,7 +15,8 @@ pnpm-debug.log*
 
 # environment variables
 .env
-.env.production
+.env.local
+# .env.production is a template (no real secrets) - tracked in git
 
 # macOS-specific files
 .DS_Store
