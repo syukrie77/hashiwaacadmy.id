@@ -52,7 +52,7 @@ if (modulesError) {
 }
 
 // Fetch Exams (only published ones for students)
-const { data: courseExams, error: examsError } = await supabase
+const { data: courseExams } = await supabase
     .from("exams")
     .select("*")
     .eq("class_id", id)
@@ -291,7 +291,7 @@ const courseModules = sortedCourseModules || [];
         const enrollBtn = document.getElementById(
             "enroll-btn",
         ) as HTMLButtonElement;
-        const materialItems = document.querySelectorAll(".material-item");
+
 
         // Modal Elements
         const modal = document.getElementById("enroll-modal");
@@ -336,63 +336,38 @@ const courseModules = sortedCourseModules || [];
         if (confirmBtn && modal) {
             confirmBtn.onclick = async () => {
                 if (!user) {
-                    window.location.href = "/login";
+                    window.location.href =
+                        "/login?redirect=" + encodeURIComponent(window.location.pathname);
                     return;
                 }
                 const btn = confirmBtn as HTMLButtonElement;
                 btn.disabled = true;
-                btn.textContent = "Processing...";
+                btn.textContent = "Membuat invoice...";
 
                 try {
-                    if (targetType === "course") {
-                        // Course Enrollment
-                        const { error: enrollError } = await (supabase as any)
-                            .from("enrollments")
-                            .insert([
-                                {
-                                    user_id: user.id,
-                                    class_id: courseId,
-                                    status: "active",
-                                },
-                            ]);
-                        if (enrollError) throw enrollError;
-                    } else {
-                        // Module Enrollment
-                        const { error: modError } = await (supabase as any)
-                            .from("module_enrollments")
-                            .insert([
-                                {
-                                    user_id: user.id,
-                                    module_id: targetModId,
-                                    class_id: courseId,
-                                    amount: targetPrice,
-                                    status: "active",
-                                },
-                            ]);
-                        if (modError) throw modError;
+                    console.log("[payment] Sending request:", { type: targetType, item_id: targetModId, course_id: courseId });
+                    const res = await fetch("/api/payments/create-invoice", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            type: targetType,
+                            item_id: targetModId,
+                            course_id: courseId,
+                        }),
+                    });
+
+                    const data = await res.json();
+                    console.log("[payment] Response:", res.status, data);
+
+                    if (!res.ok) {
+                        throw new Error(data.error || "Gagal membuat invoice");
                     }
 
-                    // Log to payments table
-                    await (supabase as any).from("payments").insert([
-                        {
-                            user_id: user.id,
-                            class_id: courseId,
-                            amount: targetPrice,
-                            status: "completed",
-                            paid_at: new Date().toISOString(),
-                        },
-                    ]);
-
-                    alert(
-                        targetType === "course"
-                            ? "Berhasil mendaftar kursus!"
-                            : "Modul berhasil dibuka!",
-                    );
-                    window.location.reload();
+                    // Redirect ke halaman pembayaran Xendit
+                    window.location.href = data.invoice_url;
                 } catch (e: any) {
-                    console.error(e);
-                    alert("Error: " + e.message);
-                    const btn = confirmBtn as HTMLButtonElement;
+                    console.error("[payment] Full error:", e);
+                    alert("Gagal memproses pembayaran: " + e.message);
                     btn.disabled = false;
                     btn.textContent = "Pay & Unlock";
                 }
@@ -519,7 +494,7 @@ const courseModules = sortedCourseModules || [];
             const buyBtn = modCard.querySelector(
                 ".buy-module-btn",
             ) as HTMLButtonElement;
-            const modProgressDiv = modCard.querySelector(".mod-progress");
+
 
             let moduleCompletedCount = 0;
             const moduleTotalCount = materials.length;

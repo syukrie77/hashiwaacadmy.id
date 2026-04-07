@@ -13,6 +13,10 @@ export const onRequest = defineMiddleware(async (context, next) => {
 
     // Public paths that don't need auth check at all
     const publicPaths = ["/", "/login", "/register"];
+    // Auth routes and Xendit webhook don't need session validation
+    const isPublicApiRoute =
+        path.startsWith("/api/auth/") ||
+        path === "/api/payments/xendit-webhook";
     const isPublicPage = publicPaths.includes(path);
     const isApiRoute = path.startsWith("/api/");
 
@@ -20,7 +24,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
     context.locals.user = null;
 
     // Only attempt Supabase auth for non-public pages and API routes that need it
-    if (!isPublicPage) {
+    if (!isPublicPage && !isPublicApiRoute) {
         try {
             // 1. Initialize Supabase SSR client
             const supabaseServer = getSupabaseServerClient(context);
@@ -113,7 +117,7 @@ export const onRequest = defineMiddleware(async (context, next) => {
         }
 
         // C. Protect general authorized routes
-        const protectedRoutes = ["/dashboard", "/profile", "/courses/*/learn", "/courses/*/exams"];
+        const protectedRoutes = ["/dashboard", "/profile", "/payment", "/courses/*/learn", "/courses/*/exams"];
         const isProtected = protectedRoutes.some(route => {
             if (route.includes("*")) {
                 const regex = new RegExp("^" + route.replace("*", ".*"));

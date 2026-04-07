@@ -4,9 +4,17 @@ import type { Database } from '../types/database';
 
 // PUBLIC_SUPABASE_URL: used for client-side (browser) requests
 // SUPABASE_INTERNAL_URL: used for server-side in Docker (internal network, faster)
-const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL as string || '';
-const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string || '';
-const supabaseInternalUrl = import.meta.env.SUPABASE_INTERNAL_URL as string || '';
+// process.env is used as primary source for server-side runtime env vars (Docker).
+// import.meta.env is Vite's build-time replacement — empty if build args weren't passed.
+const supabaseUrl = (typeof process !== 'undefined' && process.env.PUBLIC_SUPABASE_URL)
+    ? process.env.PUBLIC_SUPABASE_URL
+    : (import.meta.env.PUBLIC_SUPABASE_URL as string || '');
+const supabaseKey = (typeof process !== 'undefined' && process.env.PUBLIC_SUPABASE_ANON_KEY)
+    ? process.env.PUBLIC_SUPABASE_ANON_KEY
+    : (import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string || '');
+const supabaseInternalUrl = (typeof process !== 'undefined' && process.env.SUPABASE_INTERNAL_URL)
+    ? process.env.SUPABASE_INTERNAL_URL
+    : (import.meta.env.SUPABASE_INTERNAL_URL as string || '');
 
 // Server-side URL: prefer internal URL if available (Docker), fallback to public URL
 const serverUrl = supabaseInternalUrl || supabaseUrl;

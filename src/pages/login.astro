@@ -97,7 +97,6 @@ import Layout from "../layouts/Layout.astro";
             window.location.href = redirectParams || "/dashboard";
         } catch (err) {
             console.error("[LOGIN] Catch error:", err);
-            console.error("[LOGIN] Error type:", err instanceof Error ? err.message : String(err));
             alert("Terjadi kesalahan sistem saat menghubungi server. Detail: " + (err instanceof Error ? err.message : String(err)));
         } finally {
             if (submitBtn) {

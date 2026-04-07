@@ -1,0 +1,119 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { getSupabaseServerClient } from "../../lib/supabase";
+
+const paymentId = Astro.url.searchParams.get("id");
+let course: any = null;
+
+if (paymentId) {
+    const supabase = getSupabaseServerClient(Astro);
+    const { data } = await supabase
+        .from("payments")
+        .select("*, classes(id, title)")
+        .eq("id", paymentId)
+        .maybeSingle();
+
+    if (data) {
+        course = (data as any).classes;
+        // Update status ke expired jika masih pending
+        if (data.status === "pending") {
+            await supabase
+                .from("payments")
+                .update({ status: "expired" })
+                .eq("id", paymentId);
+        }
+    }
+}
+---
+
+<Layout>
+    <div class="payment-result-container">
+        <div class="result-card">
+            <div class="icon">❌</div>
+            <h2>Pembayaran Dibatalkan</h2>
+            <p>
+                Pembayaran Anda dibatalkan atau tidak berhasil diproses.
+                Tidak ada biaya yang dikenakan.
+            </p>
+            <div class="actions">
+                {course ? (
+                    <a href={`/courses/${course.id}`} class="btn btn-primary">
+                        Coba Lagi
+                    </a>
+                ) : null}
+                <a href="/dashboard" class="btn btn-outline">Kembali ke Dashboard</a>
+            </div>
+        </div>
+    </div>
+</Layout>
+
+<style>
+    .payment-result-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 70vh;
+        padding: 2rem;
+    }
+
+    .result-card {
+        background: white;
+        border-radius: 1rem;
+        border-top: 4px solid #ef4444;
+        padding: 3rem 2.5rem;
+        text-align: center;
+        max-width: 480px;
+        width: 100%;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+        border: 1px solid var(--border-color);
+    }
+
+    .icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        display: block;
+    }
+
+    .result-card h2 {
+        margin: 0 0 0.75rem 0;
+        font-size: 1.5rem;
+    }
+
+    .result-card p {
+        color: #6b7280;
+        margin-bottom: 2rem;
+        line-height: 1.6;
+    }
+
+    .actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        font-size: 0.95rem;
+        transition: opacity 0.15s;
+    }
+
+    .btn:hover { opacity: 0.85; }
+
+    .btn-primary {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .btn-outline {
+        background: transparent;
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+    }
+</style>

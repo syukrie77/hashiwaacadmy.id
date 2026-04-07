@@ -107,18 +107,21 @@ export interface Database {
                     class_id: string
                     title: string
                     order_no: number | null
+                    price: number
                 }
                 Insert: {
                     id?: string
                     class_id: string
                     title: string
                     order_no?: number | null
+                    price?: number
                 }
                 Update: {
                     id?: string
                     class_id?: string
                     title?: string
                     order_no?: number | null
+                    price?: number
                 }
             }
             materials: {
@@ -389,25 +392,40 @@ export interface Database {
                     id: string
                     user_id: string
                     class_id: string | null
+                    module_id: string | null
+                    payment_type: 'course' | 'module'
                     amount: number
-                    status: string
+                    status: 'pending' | 'completed' | 'failed' | 'expired'
+                    xendit_invoice_id: string | null
+                    xendit_invoice_url: string | null
                     paid_at: string | null
+                    created_at: string
                 }
                 Insert: {
                     id?: string
                     user_id: string
                     class_id?: string | null
+                    module_id?: string | null
+                    payment_type?: 'course' | 'module'
                     amount: number
-                    status: string
+                    status?: 'pending' | 'completed' | 'failed' | 'expired'
+                    xendit_invoice_id?: string | null
+                    xendit_invoice_url?: string | null
                     paid_at?: string | null
+                    created_at?: string
                 }
                 Update: {
                     id?: string
                     user_id?: string
                     class_id?: string | null
+                    module_id?: string | null
+                    payment_type?: 'course' | 'module'
                     amount?: number
-                    status?: string
+                    status?: 'pending' | 'completed' | 'failed' | 'expired'
+                    xendit_invoice_id?: string | null
+                    xendit_invoice_url?: string | null
                     paid_at?: string | null
+                    created_at?: string
                 }
             }
             certificates: {
