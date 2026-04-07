@@ -1,6 +1,23 @@
 import type { APIRoute } from "astro";
+import { createClient } from "@supabase/supabase-js";
 import { supabase as publicSupabase } from "../../../lib/supabase";
-import { getSupabaseServerClient } from "../../../lib/supabase";
+import type { Database } from "../../../types/database";
+
+// Service role client — bypasses RLS. User identity is already validated by middleware.
+// Using service role instead of session JWT because PostgREST on this Supabase instance
+// does not properly recognize user session JWTs (role "" does not exist error).
+function getSupabaseAdmin() {
+    const url =
+        process.env.SUPABASE_INTERNAL_URL ||
+        process.env.PUBLIC_SUPABASE_URL ||
+        "";
+    const key =
+        process.env.SUPABASE_SERVICE_ROLE_KEY ||
+        process.env.PUBLIC_SUPABASE_ANON_KEY ||
+        "";
+    if (!url || !key) throw new Error("[create-invoice] Supabase config missing");
+    return createClient<Database>(url, key);
+}
 
 export const POST: APIRoute = async (context) => {
     const user = context.locals.user;
@@ -51,8 +68,7 @@ export const POST: APIRoute = async (context) => {
         );
     }
 
-    // Server client (with user auth session) — for user-scoped operations
-    const supabaseServer = getSupabaseServerClient(context);
+    const supabaseServer = getSupabaseAdmin();
 
     // --- 1. Ambil detail kursus ---
     // Use PUBLIC client (no RLS restriction) for reading classes — classes has SELECT USING (true)
@@ -181,7 +197,7 @@ export const POST: APIRoute = async (context) => {
         module_id
             ? baseQuery.eq("module_id", module_id)
             : baseQuery.is("module_id", null)
-    ).maybeSingle();
+    ).maybeSingle() as { data: any };
 
     if (pendingPayment?.xendit_invoice_url) {
         // Kembalikan invoice yang sudah ada daripada buat baru
@@ -279,12 +295,12 @@ export const POST: APIRoute = async (context) => {
     }
 
     // --- 6. Update payment record dengan data Xendit ---
-    await supabaseServer
+    await (supabaseServer as any)
         .from("payments")
         .update({
             xendit_invoice_id: xenditData.id,
             xendit_invoice_url: xenditData.invoice_url,
-        } as any)
+        })
         .eq("id", paymentRecord.id);
 
     console.log(
