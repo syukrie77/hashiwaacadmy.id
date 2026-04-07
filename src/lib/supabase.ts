@@ -2,36 +2,44 @@ import { createClient } from '@supabase/supabase-js';
 import { createServerClient, parseCookieHeader } from '@supabase/ssr';
 import type { Database } from '../types/database';
 
+// PUBLIC_SUPABASE_URL: used for client-side (browser) requests
+// SUPABASE_INTERNAL_URL: used for server-side in Docker (internal network, faster)
 const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL as string || '';
 const supabaseKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY as string || '';
+const supabaseInternalUrl = import.meta.env.SUPABASE_INTERNAL_URL as string || '';
+
+// Server-side URL: prefer internal URL if available (Docker), fallback to public URL
+const serverUrl = supabaseInternalUrl || supabaseUrl;
 
 export const isSupabaseConfigured = !!(supabaseUrl && supabaseKey);
 
 if (!isSupabaseConfigured) {
     console.warn(
         '[Supabase] Missing PUBLIC_SUPABASE_URL or PUBLIC_SUPABASE_ANON_KEY environment variables. ' +
-        'The app will run in degraded mode. Please set these in your .env file (local) or Vercel Environment Variables (production).'
+        'The app will run in degraded mode.'
     );
 }
 
-// Client-side Supabase client (used for public operations or when logged in on the client side)
-// Uses placeholder values if not configured to avoid crashes at import time
+if (supabaseInternalUrl) {
+    console.log(`[Supabase] Using internal URL for server-side: ${supabaseInternalUrl}`);
+}
+
+// Client-side Supabase client (uses PUBLIC_SUPABASE_URL — must be accessible from browser)
 export const supabase = createClient<Database>(
     supabaseUrl || 'https://placeholder.supabase.co',
     supabaseKey || 'placeholder-key'
 );
 
-// Server-side Supabase client for Astro SSR (handles cookies)
+// Server-side Supabase client for Astro SSR (uses internal URL if available)
 export const getSupabaseServerClient = (context: any) => {
-    if (!isSupabaseConfigured) {
+    if (!serverUrl || !supabaseKey) {
         throw new Error(
-            '[Supabase] Cannot create server client: missing PUBLIC_SUPABASE_URL or PUBLIC_SUPABASE_ANON_KEY. ' +
-            'Please set these in Vercel Environment Variables.'
+            '[Supabase] Cannot create server client: missing SUPABASE URL or ANON_KEY.'
         );
     }
 
     return createServerClient<Database>(
-        supabaseUrl,
+        serverUrl,
         supabaseKey,
         {
             cookies: {

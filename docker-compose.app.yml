@@ -1,0 +1,36 @@
+# ============================================
+# Hashiwa Academy - Astro App Docker Compose
+# Deploy di VPS yang sama dengan Supabase
+# ============================================
+version: "3.8"
+
+services:
+  hashiwa-app:
+    container_name: hashiwa-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-4321}:4321"
+    environment:
+      # Client-side URL (browser akses ini)
+      PUBLIC_SUPABASE_URL: ${PUBLIC_SUPABASE_URL:-https://api.hashiwaacademy.id}
+      PUBLIC_SUPABASE_ANON_KEY: ${PUBLIC_SUPABASE_ANON_KEY}
+      # Server-side internal URL (Docker internal network, lebih cepat)
+      SUPABASE_INTERNAL_URL: ${SUPABASE_INTERNAL_URL:-http://supabase2-kong:8000}
+      # Node.js config
+      NODE_ENV: production
+      HOST: "0.0.0.0"
+      PORT: "4321"
+    # Connect ke network Docker Supabase yang sudah ada
+    networks:
+      - supabase_network
+
+# Gunakan network yang SAMA dengan docker-compose Supabase
+# Cari nama network dengan: docker network ls
+# Biasanya: <folder_supabase>_default
+networks:
+  supabase_network:
+    external: true
+    name: ${DOCKER_NETWORK_NAME:-supabase_default}
