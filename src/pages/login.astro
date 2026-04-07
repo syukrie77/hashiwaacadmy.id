@@ -60,25 +60,45 @@ import Layout from "../layouts/Layout.astro";
         }
 
         try {
+            console.log("[LOGIN] Mengirim request ke /api/auth/login...");
             const res = await fetch("/api/auth/login", {
                 method: "POST",
                 body: formData,
             });
-            const data = await res.json();
+            
+            console.log("[LOGIN] Response status:", res.status);
+            console.log("[LOGIN] Response headers:", {
+                contentType: res.headers.get("content-type"),
+            });
 
-            if (!res.ok) {
-                alert(data.error || "Gagal login");
+            let data;
+            try {
+                data = await res.json();
+                console.log("[LOGIN] Response data:", data);
+            } catch (parseErr) {
+                console.error("[LOGIN] JSON parse error:", parseErr);
+                console.error("[LOGIN] Response text:", await res.text());
+                alert("Kesalahan parsing response dari server. Cek console untuk detail.");
                 return;
             }
 
+            if (!res.ok) {
+                const errorMsg = data.error || data.message || "Gagal login";
+                console.error("[LOGIN] Login failed:", errorMsg);
+                alert(errorMsg);
+                return;
+            }
+
+            console.log("[LOGIN] Login successful!");
             // Cek URL redirect
             const urlParams = new URLSearchParams(window.location.search);
             const redirectParams = urlParams.get("redirect");
 
             window.location.href = redirectParams || "/dashboard";
         } catch (err) {
-            console.error(err);
-            alert("Terjadi kesalahan sistem saat menghubungi server");
+            console.error("[LOGIN] Catch error:", err);
+            console.error("[LOGIN] Error type:", err instanceof Error ? err.message : String(err));
+            alert("Terjadi kesalahan sistem saat menghubungi server. Detail: " + (err instanceof Error ? err.message : String(err)));
         } finally {
             if (submitBtn) {
                 submitBtn.textContent = orgText;

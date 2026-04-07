@@ -25,6 +25,29 @@ if [ "$PUBLIC_SUPABASE_ANON_KEY" = "YOUR_ANON_KEY_HERE" ] || [ -z "$PUBLIC_SUPAB
     exit 1
 fi
 
+# Validate PUBLIC_SUPABASE_URL
+if [ -z "$PUBLIC_SUPABASE_URL" ]; then
+    echo "ERROR: PUBLIC_SUPABASE_URL belum di-set di .env.app"
+    exit 1
+fi
+
+# Warn if PUBLIC_SUPABASE_URL contains localhost
+if echo "$PUBLIC_SUPABASE_URL" | grep -qE "(localhost|127\.0\.0\.1)"; then
+    echo ""
+    echo "⚠️  WARNING: PUBLIC_SUPABASE_URL mengandung localhost!"
+    echo "   URL: $PUBLIC_SUPABASE_URL"
+    echo ""
+    echo "   PUBLIC_SUPABASE_URL diakses dari BROWSER user, bukan server!"
+    echo "   Harus berupa domain public atau IP yang bisa di-reach dari internet."
+    echo ""
+    echo "   Contoh yang BENAR:"
+    echo "     PUBLIC_SUPABASE_URL=https://api.hashiwaacademy.id"
+    echo "     PUBLIC_SUPABASE_URL=https://your-project.supabase.co"
+    echo ""
+    echo "   Edit .env.app dan gunakan domain public Supabase Anda."
+    exit 1
+fi
+
 # Check Docker network exists
 echo ""
 echo "[1/4] Mengecek Docker network '${DOCKER_NETWORK_NAME}'..."
