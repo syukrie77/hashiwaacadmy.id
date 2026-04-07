@@ -5,6 +5,16 @@
 # Stage 1: Build
 FROM node:20-alpine AS builder
 
+# Build-time args for env vars (needed by Vite/Astro import.meta.env)
+ARG PUBLIC_SUPABASE_URL
+ARG PUBLIC_SUPABASE_ANON_KEY
+ARG SUPABASE_INTERNAL_URL
+
+# Set them as ENV so Vite picks them up during build
+ENV PUBLIC_SUPABASE_URL=$PUBLIC_SUPABASE_URL
+ENV PUBLIC_SUPABASE_ANON_KEY=$PUBLIC_SUPABASE_ANON_KEY
+ENV SUPABASE_INTERNAL_URL=$SUPABASE_INTERNAL_URL
+
 WORKDIR /app
 
 # Copy dependency files first (better cache)

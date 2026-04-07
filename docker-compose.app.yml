@@ -10,14 +10,19 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        # PUBLIC_* vars needed at BUILD TIME by Vite/Astro (import.meta.env)
+        PUBLIC_SUPABASE_URL: ${PUBLIC_SUPABASE_URL:-https://api.hashiwaacademy.id}
+        PUBLIC_SUPABASE_ANON_KEY: ${PUBLIC_SUPABASE_ANON_KEY}
+        # Internal URL also resolved at build time for server-side code
+        SUPABASE_INTERNAL_URL: ${SUPABASE_INTERNAL_URL:-http://supabase2-kong:8000}
     restart: unless-stopped
     ports:
       - "${APP_PORT:-4321}:4321"
     environment:
-      # Client-side URL (browser akses ini)
+      # Runtime env vars (also passed as build args above)
       PUBLIC_SUPABASE_URL: ${PUBLIC_SUPABASE_URL:-https://api.hashiwaacademy.id}
       PUBLIC_SUPABASE_ANON_KEY: ${PUBLIC_SUPABASE_ANON_KEY}
-      # Server-side internal URL (Docker internal network, lebih cepat)
       SUPABASE_INTERNAL_URL: ${SUPABASE_INTERNAL_URL:-http://supabase2-kong:8000}
       # Node.js config
       NODE_ENV: production
