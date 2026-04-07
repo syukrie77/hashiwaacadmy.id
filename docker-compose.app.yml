@@ -28,6 +28,11 @@ services:
       NODE_ENV: production
       HOST: "0.0.0.0"
       PORT: "4321"
+      # Payment gateway
+      XENDIT_API_KEY: ${XENDIT_API_KEY}
+      XENDIT_WEBHOOK_TOKEN: ${XENDIT_WEBHOOK_TOKEN}
+      PUBLIC_SITE_URL: ${PUBLIC_SITE_URL:-https://hashiwaacademy.id}
+      SUPABASE_SERVICE_ROLE_KEY: ${SUPABASE_SERVICE_ROLE_KEY}
     # Connect ke network Docker Supabase yang sudah ada
     networks:
       - supabase_network
