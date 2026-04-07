@@ -1,7 +1,7 @@
-import { e as createComponent, k as renderComponent, l as renderScript, r as renderTemplate, h as createAstro, m as maybeRenderHead, g as addAttribute } from '../../chunks/astro/server_BeBNlddD.mjs';
+import { e as createComponent, k as renderComponent, l as renderScript, r as renderTemplate, h as createAstro, m as maybeRenderHead, g as addAttribute } from '../../chunks/astro/server_DH5mszyI.mjs';
 import 'piccolore';
-import { $ as $$Layout } from '../../chunks/Layout_hC64G2nb.mjs';
-import { s as supabase } from '../../chunks/supabase_DDcE5sYV.mjs';
+import { $ as $$Layout } from '../../chunks/Layout_5IANKJKH.mjs';
+import { s as supabase } from '../../chunks/supabase_CLFJcle_.mjs';
 /* empty css                                   */
 export { renderers } from '../../renderers.mjs';
 
@@ -35,7 +35,7 @@ const $$id = createComponent(async ($$result, $$props, $$slots) => {
   if (modulesError) {
     console.error("Error fetching modules:", modulesError);
   }
-  const { data: courseExams, error: examsError } = await supabase.from("exams").select("*").eq("class_id", id);
+  const { data: courseExams, error: examsError } = await supabase.from("exams").select("*").eq("class_id", id).eq("is_published", true);
   const courseModules = sortedCourseModules || [];
   return renderTemplate`${renderComponent($$result, "Layout", $$Layout, { "data-astro-cid-ae7xwjmx": true }, { "default": async ($$result2) => renderTemplate` ${maybeRenderHead()}<div id="user-data"${addAttribute(JSON.stringify(user || null), "data-user")} class="hidden" data-astro-cid-ae7xwjmx></div> <div class="course-header" data-astro-cid-ae7xwjmx> <h1 data-astro-cid-ae7xwjmx>${course.title}</h1> <p class="description" data-astro-cid-ae7xwjmx>${course.description}</p> <div class="meta" data-astro-cid-ae7xwjmx> <span class="price" data-astro-cid-ae7xwjmx>${course.price && course.price > 0 ? `Biaya Masuk: Rp ${course.price.toLocaleString("id-ID")}` : "Gratis"}</span> <button id="enroll-btn" class="btn btn-primary"${addAttribute(id, "data-course-id")}${addAttribute(course.price || 0, "data-course-price")} data-astro-cid-ae7xwjmx>
 Start Learning
@@ -51,8 +51,8 @@ Unlock
 </button> </div> </div> <ul class="materials-list" data-astro-cid-ae7xwjmx> ${mod.materials && mod.materials.length > 0 ? mod.materials.map((mat) => renderTemplate`<li class="material-item"${addAttribute(mat.id, "data-id")} data-astro-cid-ae7xwjmx> <span class="material-type" data-astro-cid-ae7xwjmx> ${mat.type === "video" ? "\u{1F4FA}" : mat.type === "pdf" ? "\u{1F4C4}" : "\u{1F4DD}"} </span> <span class="material-title" data-astro-cid-ae7xwjmx> ${mat.title} </span> ${mat.duration && renderTemplate`<span class="duration" data-astro-cid-ae7xwjmx> ${mat.duration} min
 </span>`} </li>`) : renderTemplate`<li class="empty-material" data-astro-cid-ae7xwjmx>
 No materials
-</li>`} </ul> </div>`)} </div> </div> <!-- Exams Section --> ${courseExams && courseExams.length > 0 && renderTemplate`<div class="exams-section" data-astro-cid-ae7xwjmx> <h3 data-astro-cid-ae7xwjmx>Exams</h3> <ul class="materials-list" data-astro-cid-ae7xwjmx> ${courseExams.map((exam) => renderTemplate`<li class="exam-item-link" data-astro-cid-ae7xwjmx> <a${addAttribute(`/courses/${id}/exams/${exam.id}`, "href")} class="exam-link" data-astro-cid-ae7xwjmx> <span class="material-type" data-astro-cid-ae7xwjmx>📝</span> <span class="material-title" data-astro-cid-ae7xwjmx> ${exam.title} </span> <span class="duration" data-astro-cid-ae7xwjmx> ${exam.duration} min
-</span> </a> </li>`)} </ul> </div>`} </div> <div class="main-content" data-astro-cid-ae7xwjmx> <div class="placeholder-viewer" data-astro-cid-ae7xwjmx> <h2 data-astro-cid-ae7xwjmx>Select a lesson to start</h2> <p data-astro-cid-ae7xwjmx>Your learning journey begins here.</p> </div> </div> ` })} <!-- Enrollment Modal --> <div id="enroll-modal" class="modal hidden" data-astro-cid-ae7xwjmx> <div class="modal-content" data-astro-cid-ae7xwjmx> <h3 data-astro-cid-ae7xwjmx>Unlock Module</h3> <p data-astro-cid-ae7xwjmx>
+</li>`} </ul> </div>`)} </div> <!-- Exams Section inside sidebar --> ${courseExams && courseExams.length > 0 && renderTemplate`<div class="exams-section" data-astro-cid-ae7xwjmx> <h3 data-astro-cid-ae7xwjmx>📝 Ujian</h3> <ul class="materials-list" data-astro-cid-ae7xwjmx> ${courseExams.map((exam) => renderTemplate`<li class="exam-item-link" data-astro-cid-ae7xwjmx> <a${addAttribute(`/courses/${id}/exams/${exam.id}`, "href")} class="exam-link" data-astro-cid-ae7xwjmx> <span class="material-type" data-astro-cid-ae7xwjmx>📝</span> <span class="material-title" data-astro-cid-ae7xwjmx> ${exam.title} </span> <span class="duration" data-astro-cid-ae7xwjmx> ${exam.duration} min
+</span> </a> </li>`)} </ul> </div>`} </div> <div class="main-content" data-astro-cid-ae7xwjmx> <div class="placeholder-viewer" data-astro-cid-ae7xwjmx> <h2 data-astro-cid-ae7xwjmx>Select a lesson to start</h2> <p data-astro-cid-ae7xwjmx>Your learning journey begins here.</p> </div> </div> </div> ` })} <!-- Enrollment Modal --> <div id="enroll-modal" class="modal hidden" data-astro-cid-ae7xwjmx> <div class="modal-content" data-astro-cid-ae7xwjmx> <h3 data-astro-cid-ae7xwjmx>Unlock Module</h3> <p data-astro-cid-ae7xwjmx>
 You are about to unlock: <strong id="modal-mod-title" data-astro-cid-ae7xwjmx></strong> </p> <p class="price-display" data-astro-cid-ae7xwjmx>
 Price: <span id="modal-mod-price" data-astro-cid-ae7xwjmx></span> </p> <div class="modal-actions" data-astro-cid-ae7xwjmx> <button id="cancel-enroll" class="btn btn-outline" data-astro-cid-ae7xwjmx>Cancel</button> <button id="confirm-enroll" class="btn btn-primary" data-astro-cid-ae7xwjmx>Pay & Unlock</button> </div> </div> </div> ${renderScript($$result, "C:/Users/syukr/Proyek/E-Learning-Hashiwa-Figma/src/pages/courses/[id].astro?astro&type=script&index=0&lang.ts")} `;
 }, "C:/Users/syukr/Proyek/E-Learning-Hashiwa-Figma/src/pages/courses/[id].astro", void 0);

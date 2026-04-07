@@ -1,0 +1,500 @@
+---
+import Layout from "../../../../layouts/Layout.astro";
+const { id } = Astro.params;
+export const prerender = false;
+
+const user = Astro.locals.user;
+if (!user || (user.role !== "instructor" && user.role !== "admin")) {
+    return Astro.redirect("/login");
+}
+---
+
+<Layout>
+    <div id="user-data" data-user={JSON.stringify(user)} class="hidden"></div>
+    <div class="page-container">
+        <div class="page-header">
+            <div>
+                <a href={`/instructor/courses/${id}/exams`} class="back-link">← Kembali ke Daftar Ujian</a>
+                <h1>Koreksi Jawaban Siswa</h1>
+                <p id="exam-info" class="muted">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Exam Selector -->
+        <div class="filter-bar">
+            <label>Pilih Ujian:</label>
+            <select id="exam-select">
+                <option value="">-- Pilih Ujian --</option>
+            </select>
+            <div class="filter-group">
+                <button class="btn btn-sm btn-outline filter-btn active" data-filter="all">Semua</button>
+                <button class="btn btn-sm btn-outline filter-btn" data-filter="submitted">⏳ Belum Dikoreksi</button>
+                <button class="btn btn-sm btn-outline filter-btn" data-filter="graded">✅ Sudah Dikoreksi</button>
+            </div>
+        </div>
+
+        <div id="loading" class="state-msg">Memuat data...</div>
+
+        <div id="content" class="hidden">
+            <div class="stats-row">
+                <div class="stat-card">
+                    <span class="stat-num" id="total-subs">0</span>
+                    <span class="stat-label">Total Siswa</span>
+                </div>
+                <div class="stat-card warning">
+                    <span class="stat-num" id="pending-subs">0</span>
+                    <span class="stat-label">Belum Dikoreksi</span>
+                </div>
+                <div class="stat-card success">
+                    <span class="stat-num" id="graded-subs">0</span>
+                    <span class="stat-label">Sudah Dikoreksi</span>
+                </div>
+                <div class="stat-card info">
+                    <span class="stat-num" id="avg-score">-</span>
+                    <span class="stat-label">Rata-rata Nilai</span>
+                </div>
+            </div>
+
+            <!-- Bulk Actions -->
+            <div id="bulk-actions" class="bulk-bar hidden">
+                <div class="bulk-left">
+                    <label class="checkbox-label">
+                        <input type="checkbox" id="select-all" />
+                        <span>Pilih Semua</span>
+                    </label>
+                    <span id="selected-count" class="selected-count">0 dipilih</span>
+                </div>
+                <div class="bulk-right">
+                    <button id="bulk-autograde-btn" class="btn btn-sm btn-primary" disabled>
+                        ⚡ Auto-Grade PG & B/S
+                    </button>
+                    <button id="bulk-submit-btn" class="btn btn-sm btn-success" disabled>
+                        ✅ Submit Semua Nilai
+                    </button>
+                </div>
+            </div>
+
+            <div id="submissions-list" class="submissions-grid"></div>
+            <div id="no-subs" class="empty-state hidden">
+                <p>Belum ada siswa yang mengumpulkan jawaban.</p>
+            </div>
+        </div>
+    </div>
+</Layout>
+
+<script>
+    import { supabase } from "../../../../lib/supabase";
+
+    const pathParts = window.location.pathname.split("/");
+    // Path: /instructor/courses/[id]/grading → index [3] = courseId
+    const courseId = pathParts[3];
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const preselectedExam = urlParams.get("examId");
+
+    let currentFilter = "all";
+    let submissions: any[] = [];
+    let selectedIds: Set<string> = new Set();
+    let currentExamId = "";
+
+    async function init() {
+        const { data: exams } = await supabase
+            .from("exams")
+            .select("id, title")
+            .eq("class_id", courseId);
+
+        const select = document.getElementById("exam-select") as HTMLSelectElement;
+        (exams || []).forEach((exam: any) => {
+            const opt = document.createElement("option");
+            opt.value = exam.id;
+            opt.textContent = exam.title;
+            select.appendChild(opt);
+        });
+
+        if (preselectedExam) {
+            select.value = preselectedExam;
+            await loadSubmissions(preselectedExam);
+        }
+
+        select.onchange = async () => {
+            if (select.value) await loadSubmissions(select.value);
+        };
+    }
+
+    async function loadSubmissions(examId: string) {
+        currentExamId = examId;
+        selectedIds.clear();
+        updateBulkUI();
+
+        document.getElementById("loading")!.classList.remove("hidden");
+        document.getElementById("content")!.classList.add("hidden");
+
+        const { data: exam } = await supabase
+            .from("exams")
+            .select("title, passing_score")
+            .eq("id", examId)
+            .single();
+
+        if (exam) {
+            document.getElementById("exam-info")!.textContent = `Ujian: ${exam.title} | Passing: ${exam.passing_score || 60}%`;
+        }
+
+        const { data: subs, error } = await supabase
+            .from("exam_submissions")
+            .select("*, users:user_id(name, email)")
+            .eq("exam_id", examId)
+            .neq("status", "in_progress")
+            .order("submitted_at", { ascending: true });
+
+        if (error) {
+            console.error("Submissions load error:", error);
+            document.getElementById("loading")!.textContent = "Gagal memuat data. Error: " + (error.message || "Unknown. Pastikan RLS tabel exam_submissions sudah di-fix (jalankan fix_exam_rls_for_students.sql).");
+            return;
+        }
+
+        submissions = subs || [];
+        document.getElementById("loading")!.classList.add("hidden");
+        document.getElementById("content")!.classList.remove("hidden");
+
+        updateStats();
+        renderSubmissions();
+    }
+
+    function updateStats() {
+        const total = submissions.length;
+        const pending = submissions.filter((s: any) => s.status === "submitted").length;
+        const graded = submissions.filter((s: any) => s.status === "graded").length;
+        const gradedSubs = submissions.filter((s: any) => s.status === "graded" && s.score !== null);
+        const avg = gradedSubs.length > 0
+            ? Math.round(gradedSubs.reduce((sum: number, s: any) => sum + s.score, 0) / gradedSubs.length)
+            : "-";
+
+        document.getElementById("total-subs")!.textContent = String(total);
+        document.getElementById("pending-subs")!.textContent = String(pending);
+        document.getElementById("graded-subs")!.textContent = String(graded);
+        document.getElementById("avg-score")!.textContent = String(avg);
+    }
+
+    function renderSubmissions() {
+        const list = document.getElementById("submissions-list")!;
+        const noSubs = document.getElementById("no-subs")!;
+        const bulkBar = document.getElementById("bulk-actions")!;
+
+        const filtered = currentFilter === "all" ? submissions :
+            submissions.filter((s: any) => s.status === currentFilter);
+
+        if (filtered.length === 0) {
+            list.innerHTML = "";
+            noSubs.classList.remove("hidden");
+            bulkBar.classList.add("hidden");
+            return;
+        }
+
+        noSubs.classList.add("hidden");
+        bulkBar.classList.remove("hidden");
+
+        const hasEssay = true; // We show bulk bar always for consistency
+
+        list.innerHTML = filtered.map((sub: any) => {
+            const studentName = sub.users?.name || sub.users?.email || "Siswa";
+            const statusClass = sub.status === "graded" ? "status-graded" : "status-pending";
+            const statusText = sub.status === "graded" ? "✅ Dikoreksi" : "⏳ Menunggu Koreksi";
+            const score = sub.score !== null ? `${sub.score}%` : "-";
+            const submittedAt = sub.submitted_at
+                ? new Date(sub.submitted_at).toLocaleString("id-ID")
+                : "-";
+            const isSelected = selectedIds.has(sub.id);
+
+            return `
+                <div class="submission-card ${sub.status === "graded" ? "graded" : ""} ${isSelected ? "selected" : ""}">
+                    <label class="sub-checkbox">
+                        <input type="checkbox" class="sub-select" data-id="${sub.id}" ${isSelected ? "checked" : ""} />
+                    </label>
+                    <div class="sub-avatar">${studentName.charAt(0).toUpperCase()}</div>
+                    <div class="sub-info">
+                        <h4>${studentName}</h4>
+                        <p class="sub-meta">Dikumpulkan: ${submittedAt}</p>
+                    </div>
+                    <div class="sub-status ${statusClass}">${statusText}</div>
+                    <div class="sub-score">${score}</div>
+                    <a href="/instructor/courses/${courseId}/grading/${sub.id}" class="btn btn-sm btn-primary">
+                        ${sub.status === "graded" ? "Lihat/Edit" : "Koreksi"}
+                    </a>
+                </div>
+            `;
+        }).join("");
+
+        // Checkbox listeners
+        list.querySelectorAll(".sub-select").forEach((cb) => {
+            (cb as HTMLInputElement).onchange = () => {
+                const id = (cb as HTMLElement).dataset.id!;
+                if ((cb as HTMLInputElement).checked) {
+                    selectedIds.add(id);
+                } else {
+                    selectedIds.delete(id);
+                }
+                updateBulkUI();
+                // Update card visual
+                (cb as HTMLElement).closest(".submission-card")?.classList.toggle("selected", (cb as HTMLInputElement).checked);
+            };
+        });
+    }
+
+    function updateBulkUI() {
+        const count = selectedIds.size;
+        document.getElementById("selected-count")!.textContent = `${count} dipilih`;
+        document.getElementById("bulk-autograde-btn")!.disabled = count === 0;
+        document.getElementById("bulk-submit-btn")!.disabled = count === 0;
+    }
+
+    // Select all
+    document.getElementById("select-all")!.onchange = () => {
+        const checked = (document.getElementById("select-all") as HTMLInputElement).checked;
+        const filtered = currentFilter === "all" ? submissions :
+            submissions.filter((s: any) => s.status === currentFilter);
+
+        selectedIds.clear();
+        if (checked) {
+            filtered.forEach((s: any) => selectedIds.add(s.id));
+        }
+        renderSubmissions();
+        updateBulkUI();
+    };
+
+    // Bulk auto-grade (MCQ & TF are already auto-graded by trigger, but this ensures it)
+    document.getElementById("bulk-autograde-btn")!.onclick = async () => {
+        const btn = document.getElementById("bulk-autograde-btn") as HTMLButtonElement;
+        btn.disabled = true;
+        btn.textContent = "Processing...";
+
+        try {
+            // Fetch questions for this exam
+            const { data: questions } = await supabase
+                .from("questions")
+                .select("id, type, points, correct_answer, question_options(id, option_text, is_correct)")
+                .eq("exam_id", currentExamId);
+
+            if (!questions || questions.length === 0) {
+                alert("Tidak ada soal untuk ujian ini.");
+                btn.disabled = false;
+                btn.textContent = "⚡ Auto-Grade PG & B/S";
+                return;
+            }
+
+            let processed = 0;
+            for (const subId of selectedIds) {
+                // Fetch answers for this submission
+                const { data: answers } = await supabase
+                    .from("submission_answers")
+                    .select("*")
+                    .eq("submission_id", subId);
+
+                if (!answers) continue;
+
+                for (const ans of answers) {
+                    const q = questions.find((q: any) => q.id === ans.question_id);
+                    if (!q) continue;
+
+                    if (q.type === "multiple_choice" && ans.selected_option_id) {
+                        const correctOpt = q.question_options?.find((o: any) => o.is_correct);
+                        const isCorrect = correctOpt && ans.selected_option_id === correctOpt.id;
+                        await supabase.from("submission_answers").update({
+                            is_correct: isCorrect,
+                            points_awarded: isCorrect ? (q.points || 10) : 0,
+                        }).eq("id", ans.id);
+                    } else if (q.type === "true_false" && ans.answer_text) {
+                        const isCorrect = ans.answer_text === q.correct_answer;
+                        await supabase.from("submission_answers").update({
+                            is_correct: isCorrect,
+                            points_awarded: isCorrect ? (q.points || 10) : 0,
+                        }).eq("id", ans.id);
+                    }
+                    // Essay: skip
+                }
+                processed++;
+            }
+
+            alert(`✅ Auto-grade selesai untuk ${processed} submission. Soal PG & B/S sudah dinilai otomatis.`);
+            await loadSubmissions(currentExamId);
+        } catch (err: any) {
+            alert("Error: " + (err.message || "Gagal auto-grade"));
+        }
+
+        btn.disabled = false;
+        btn.textContent = "⚡ Auto-Grade PG & B/S";
+    };
+
+    // Bulk submit grades
+    document.getElementById("bulk-submit-btn")!.onclick = async () => {
+        if (!confirm(`Submit nilai untuk ${selectedIds.size} siswa? Pastikan soal essay sudah dikoreksi.`)) return;
+
+        const btn = document.getElementById("bulk-submit-btn") as HTMLButtonElement;
+        btn.disabled = true;
+        btn.textContent = "Submitting...";
+
+        try {
+            const { data: questions } = await supabase
+                .from("questions")
+                .select("id, type, points")
+                .eq("exam_id", currentExamId);
+
+            const totalMax = (questions || []).reduce((sum: number, q: any) => sum + (q.points || 10), 0);
+
+            for (const subId of selectedIds) {
+                const { data: answers } = await supabase
+                    .from("submission_answers")
+                    .select("*")
+                    .eq("submission_id", subId);
+
+                if (!answers) continue;
+
+                let totalAwarded = 0;
+                for (const ans of answers) {
+                    const pts = ans.points_awarded ?? 0;
+                    totalAwarded += pts;
+                }
+
+                const finalScore = totalMax > 0 ? Math.round((totalAwarded / totalMax) * 100) : 0;
+                const sub = submissions.find((s: any) => s.id === subId);
+                const userData = JSON.parse((document.getElementById("user-data") as HTMLElement).dataset.user || "{}");
+
+                await supabase.from("exam_submissions").update({
+                    status: "graded",
+                    score: finalScore,
+                    graded_at: new Date().toISOString(),
+                    graded_by: userData.id,
+                }).eq("id", subId);
+
+                await supabase.from("results").upsert({
+                    exam_id: currentExamId,
+                    user_id: sub?.user_id,
+                    score: finalScore,
+                }, { onConflict: "exam_id, user_id" });
+            }
+
+            alert(`✅ Nilai berhasil disubmit untuk ${selectedIds.size} siswa!`);
+            await loadSubmissions(currentExamId);
+        } catch (err: any) {
+            alert("Error: " + (err.message || "Gagal submit"));
+        }
+
+        btn.disabled = false;
+        btn.textContent = "✅ Submit Semua Nilai";
+    };
+
+    // Filter buttons
+    document.querySelectorAll(".filter-btn").forEach((btn) => {
+        (btn as HTMLButtonElement).onclick = () => {
+            document.querySelectorAll(".filter-btn").forEach((b) => b.classList.remove("active"));
+            (btn as HTMLElement).classList.add("active");
+            currentFilter = (btn as HTMLElement).dataset.filter || "all";
+            selectedIds.clear();
+            (document.getElementById("select-all") as HTMLInputElement).checked = false;
+            updateBulkUI();
+            renderSubmissions();
+        };
+    });
+
+    init();
+</script>
+
+<style>
+    .page-container { max-width: 1000px; margin: 0 auto; padding: 2rem; }
+    .page-header { margin-bottom: 2rem; }
+    .page-header h1 { margin: 0.5rem 0 0 0; font-size: 1.5rem; }
+    .back-link { color: #6b7280; text-decoration: none; font-size: 0.875rem; }
+    .muted { color: #6b7280; margin: 0; }
+    .state-msg { text-align: center; padding: 3rem; color: #6b7280; }
+    .hidden { display: none !important; }
+
+    .filter-bar {
+        display: flex; align-items: center; gap: 1rem; margin-bottom: 1.5rem;
+        padding: 1rem; background: white; border: 1px solid #e2e8f0; border-radius: 0.75rem;
+        flex-wrap: wrap;
+    }
+    .filter-bar label { font-weight: 600; font-size: 0.875rem; color: #374151; }
+    .filter-bar select { padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 0.375rem; min-width: 200px; }
+    .filter-group { display: flex; gap: 0.375rem; margin-left: auto; }
+    .filter-btn.active { background: #2563eb !important; color: white !important; border-color: #2563eb !important; }
+
+    .stats-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem; }
+    .stat-card {
+        background: white; border: 1px solid #e2e8f0; border-radius: 0.75rem;
+        padding: 1.25rem; text-align: center;
+    }
+    .stat-card .stat-num { display: block; font-size: 2rem; font-weight: 800; color: #1e293b; }
+    .stat-card .stat-label { font-size: 0.8rem; color: #64748b; }
+    .stat-card.warning { border-color: #fbbf24; }
+    .stat-card.warning .stat-num { color: #f59e0b; }
+    .stat-card.success { border-color: #34d399; }
+    .stat-card.success .stat-num { color: #10b981; }
+    .stat-card.info { border-color: #60a5fa; }
+    .stat-card.info .stat-num { color: #2563eb; }
+
+    /* Bulk Actions Bar */
+    .bulk-bar {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 0.75rem 1rem; background: #f0f9ff; border: 1px solid #bae6fd;
+        border-radius: 0.75rem; margin-bottom: 1rem;
+    }
+    .bulk-left { display: flex; align-items: center; gap: 1rem; }
+    .checkbox-label { display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.875rem; font-weight: 600; color: #374151; }
+    .checkbox-label input { width: 16px; height: 16px; accent-color: #2563eb; }
+    .selected-count { font-size: 0.8rem; color: #2563eb; font-weight: 500; }
+    .bulk-right { display: flex; gap: 0.5rem; }
+
+    .submissions-grid { display: flex; flex-direction: column; gap: 0.75rem; }
+    .submission-card {
+        display: flex; align-items: center; gap: 1rem; padding: 1rem 1.25rem;
+        background: white; border: 1px solid #e2e8f0; border-radius: 0.75rem;
+        transition: all 0.2s;
+    }
+    .submission-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .submission-card.graded { border-left: 4px solid #10b981; }
+    .submission-card.selected { background: #eff6ff; border-color: #93c5fd; }
+    .sub-checkbox { display: flex; align-items: center; }
+    .sub-checkbox input { width: 18px; height: 18px; accent-color: #2563eb; cursor: pointer; }
+    .sub-avatar {
+        width: 40px; height: 40px; border-radius: 50%; background: #dbeafe; color: #2563eb;
+        display: flex; align-items: center; justify-content: center; font-weight: 700;
+        font-size: 1.1rem; flex-shrink: 0;
+    }
+    .sub-info { flex: 1; }
+    .sub-info h4 { margin: 0; font-size: 0.95rem; }
+    .sub-meta { margin: 0; font-size: 0.8rem; color: #94a3b8; }
+    .sub-status { padding: 0.25rem 0.75rem; border-radius: 999px; font-size: 0.75rem; font-weight: 600; }
+    .status-pending { background: #fef3c7; color: #92400e; }
+    .status-graded { background: #dcfce7; color: #166534; }
+    .sub-score { font-size: 1.25rem; font-weight: 800; color: #1e293b; min-width: 60px; text-align: center; }
+
+    .btn { padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; border: none; text-decoration: none; font-size: 0.875rem; display: inline-flex; align-items: center; }
+    .btn-sm { padding: 0.375rem 0.75rem; font-size: 0.8rem; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-primary:disabled { background: #93c5fd; cursor: not-allowed; }
+    .btn-success { background: #10b981; color: white; }
+    .btn-success:hover { background: #059669; }
+    .btn-success:disabled { background: #6ee7b7; cursor: not-allowed; }
+    .btn-outline { background: white; border: 1px solid #d1d5db; color: #374151; }
+    .btn-outline:hover { background: #f9fafb; }
+
+    .empty-state { text-align: center; padding: 4rem 2rem; background: white; border: 2px dashed #e2e8f0; border-radius: 1rem; color: #6b7280; }
+
+    @media (max-width: 768px) {
+        .stats-row { grid-template-columns: repeat(2, 1fr); }
+        .bulk-bar { flex-direction: column; gap: 0.75rem; }
+        .submission-card { flex-wrap: wrap; }
+    }
+</style>
+</task_progress>
+- [x] Explore exams.astro (main exam list page)
+- [x] Explore exam detail page (examId.astro) - question management
+- [x] Explore grading list page
+- [x] Explore grading detail page
+- [x] Explore student exam taking page
+- [x] Explore database schema for exam tables
+- [x] Enhance exam creation modal with multi-step wizard + inline question builder
+- [x] Enhance grading list page with bulk auto-grade and better UX
+- [ ] Enhance grading detail page with better UX
+- [ ] Test and verify
+</task_progress>

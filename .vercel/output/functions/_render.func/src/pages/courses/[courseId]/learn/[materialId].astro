@@ -148,7 +148,7 @@ const sortedModules = (modules || []).map((mod: any) => ({
                   </video>
                 )}
                 <div class="actions">
-                  <button class="btn btn-primary" id="mark-complete">
+                  <button class="btn btn-primary mark-complete-btn">
                     Mark as Completed
                   </button>
                 </div>
@@ -166,7 +166,7 @@ const sortedModules = (modules || []).map((mod: any) => ({
                   <p>PDF tidak tampil? <a href={material.content} target="_blank" rel="noopener noreferrer" class="btn btn-outline">📥 Download PDF</a></p>
                 </div>
                 <div class="actions">
-                  <button class="btn btn-primary" id="mark-complete">
+                  <button class="btn btn-primary mark-complete-btn">
                     Mark as Completed
                   </button>
                 </div>
@@ -177,7 +177,7 @@ const sortedModules = (modules || []).map((mod: any) => ({
           }
           {material.type === "text" && (
             <div class="actions">
-              <button class="btn btn-primary" id="mark-complete">
+              <button class="btn btn-primary mark-complete-btn">
                 Mark as Completed
               </button>
             </div>
@@ -190,6 +190,14 @@ const sortedModules = (modules || []).map((mod: any) => ({
       </div>
       <!-- End secure-content -->
     </main>
+  </div>
+  
+  <div
+    id="data-bridge"
+    class="hidden"
+    data-course-id={courseId}
+    data-material-id={materialId}
+  >
   </div>
 </Layout>
 
@@ -210,11 +218,11 @@ const sortedModules = (modules || []).map((mod: any) => ({
       .dataset.materialId;
 
     // 1. Check Enrollment
-    const { data: enrollment } = await supabase
+    const { data: enrollment } = await (supabase as any)
       .from("enrollments")
       .select("id")
       .eq("user_id", user.id)
-      .eq("class_id", courseId)
+      .eq("class_id", courseId || "")
       .single();
 
     if (!enrollment) {
@@ -224,13 +232,13 @@ const sortedModules = (modules || []).map((mod: any) => ({
     }
 
     // 2. Fetch Progress and Lock/Unlock materials
-    const { data: progress } = await supabase
+    const { data: progress } = await (supabase as any)
       .from("progress")
       .select("material_id, completed")
       .eq("user_id", user.id)
       .eq("completed", true);
 
-    const completedIds = new Set(progress?.map((p) => p.material_id) || []);
+    const completedIds = new Set((progress as any[])?.map((p) => p.material_id) || []);
     const materialLinks = Array.from(
       document.querySelectorAll(".material-links li"),
     );
@@ -287,33 +295,33 @@ const sortedModules = (modules || []).map((mod: any) => ({
     });
 
     // 3. Mark Complete Logic
-    const markBtn = document.getElementById("mark-complete");
+    const markBtns = document.querySelectorAll(".mark-complete-btn");
     if (completedIds.has(materialId)) {
-      if (markBtn) {
-        markBtn.textContent = "Completed ✓";
-        (markBtn as HTMLButtonElement).disabled = true;
-      }
+      markBtns.forEach(btn => {
+        btn.textContent = "Completed ✓";
+        (btn as HTMLButtonElement).disabled = true;
+      });
     }
 
-    markBtn?.addEventListener("click", async () => {
-      const { error } = await supabase.from("progress").upsert(
-        {
-          user_id: user.id,
-          material_id: materialId,
-          completed: true,
-          completed_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,material_id" },
-      );
+    markBtns.forEach(btn => {
+      btn.addEventListener("click", async () => {
+        const { error } = await (supabase.from("progress") as any).upsert(
+          {
+            user_id: user.id || "",
+            material_id: materialId || "",
+            completed: true,
+            completed_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,material_id" },
+        );
 
-      if (error) {
-        console.error(error);
-        alert("Error updating progress");
-      } else {
-        // alert("Content marked as completed!");
-        // Iterate to next lesson?
-        window.location.reload();
-      }
+        if (error) {
+          console.error(error);
+          alert("Error updating progress");
+        } else {
+          window.location.reload();
+        }
+      });
     });
   }
 
@@ -360,13 +368,6 @@ const sortedModules = (modules || []).map((mod: any) => ({
   });
 </script>
 
-<div
-  id="data-bridge"
-  class="hidden"
-  data-course-id={courseId}
-  data-material-id={materialId}
->
-</div>
 
 <style>
   .learn-container {

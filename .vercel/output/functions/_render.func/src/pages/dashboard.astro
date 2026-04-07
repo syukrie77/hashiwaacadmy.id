@@ -17,9 +17,7 @@ if (!user) {
             </div>
             <div class="header-actions">
                 <a href="/profile" class="btn btn-outline">Profile Settings</a>
-                <button id="logout-btn" class="btn btn-outline danger"
-                    >Sign Out</button
-                >
+                <button id="logout-btn" class="btn btn-outline danger">Sign Out</button>
             </div>
         </div>
 
@@ -31,39 +29,47 @@ if (!user) {
         <div id="dashboard-content" class="hidden">
             <div class="stats-grid">
                 <div class="stat-card">
-                    <span class="stat-label">Enrolled Courses</span>
+                    <span class="stat-label">Kelas Aktif</span>
                     <span id="stat-courses" class="stat-value">0</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-label">Exams Taken</span>
+                    <span class="stat-label">Ujian Dikerjakan</span>
                     <span id="stat-exams" class="stat-value">0</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-label">Sudah Dinilai</span>
+                    <span id="stat-graded" class="stat-value">0</span>
+                </div>
+                <div class="stat-card accent">
+                    <span class="stat-label">Rata-rata Nilai</span>
+                    <span id="stat-avg" class="stat-value">-</span>
                 </div>
             </div>
 
             <div class="dashboard-grid">
                 <section class="main-content">
                     <div class="section-header">
-                        <h3>My Courses</h3>
-                        <a href="/" class="link">Find more courses →</a>
+                        <h3>Kelas Saya</h3>
+                        <a href="/" class="link">Cari Kelas Lain →</a>
                     </div>
-                    <div id="enrollments-grid" class="course-grid">
-                        <!-- Courses will be injected here -->
-                    </div>
+                    <div id="enrollments-grid" class="course-grid"></div>
                     <div id="no-enrollments" class="hidden empty-state">
-                        <p>You haven't enrolled in any courses yet.</p>
-                        <a href="/" class="btn btn-primary">Browse Courses</a>
+                        <p>Belum terdaftar di kelas apapun.</p>
+                        <a href="/" class="btn btn-primary">Lihat Kelas</a>
                     </div>
                 </section>
 
                 <aside class="sidebar">
                     <section>
-                        <h3>Recent Results</h3>
-                        <ul id="results-list" class="activity-list">
-                            <!-- Results injected here -->
-                        </ul>
-                        <div id="no-results" class="empty-small">
-                            No exam records yet
-                        </div>
+                        <h3>📋 Hasil Ujian</h3>
+                        <ul id="results-list" class="activity-list"></ul>
+                        <div id="no-results" class="empty-small">Belum ada ujian</div>
+                    </section>
+
+                    <section class="mt-2">
+                        <h3>⏳ Menunggu Koreksi</h3>
+                        <ul id="pending-list" class="activity-list"></ul>
+                        <div id="no-pending" class="empty-small">Semua sudah dinilai ✅</div>
                     </section>
                 </aside>
             </div>
@@ -76,7 +82,6 @@ if (!user) {
 
     const userEl = document.getElementById("user-data");
     const userStr = userEl ? userEl.dataset.user : null;
-
     const loadingEl = document.getElementById("loading");
     const contentEl = document.getElementById("dashboard-content");
     const userNameEl = document.getElementById("user-name");
@@ -84,8 +89,12 @@ if (!user) {
     const noEnrollmentsEl = document.getElementById("no-enrollments");
     const resultsList = document.getElementById("results-list");
     const noResultsEl = document.getElementById("no-results");
+    const pendingList = document.getElementById("pending-list");
+    const noPendingEl = document.getElementById("no-pending");
     const statCourses = document.getElementById("stat-courses");
     const statExams = document.getElementById("stat-exams");
+    const statGraded = document.getElementById("stat-graded");
+    const statAvg = document.getElementById("stat-avg");
     const logoutBtn = document.getElementById("logout-btn");
 
     if (!userStr) {
@@ -94,29 +103,17 @@ if (!user) {
         const user = JSON.parse(userStr);
         if (userNameEl) userNameEl.textContent = user.name;
 
-        // Safety: If admin, show a prominent link or redirect (optional)
         if (user.role === "admin") {
             const adminAlert = document.createElement("div");
-            adminAlert.style.padding = "1rem";
-            adminAlert.style.background = "#fee2e2";
-            adminAlert.style.color = "#991b1b";
-            adminAlert.style.marginBottom = "1rem";
-            adminAlert.style.borderRadius = "0.5rem";
-            adminAlert.innerHTML =
-                '<strong>Admin detected:</strong> <a href="/admin/dashboard" style="text-decoration: underline; color: inherit;">Manage Platform</a>';
+            adminAlert.className = "role-banner admin-banner";
+            adminAlert.innerHTML = '<strong>Admin:</strong> <a href="/admin/dashboard">Kelola Platform</a>';
             contentEl?.prepend(adminAlert);
         }
 
-        // Instructor banner
         if (user.role === "instructor") {
             const instructorAlert = document.createElement("div");
-            instructorAlert.style.padding = "1rem";
-            instructorAlert.style.background = "#d1fae5";
-            instructorAlert.style.color = "#065f46";
-            instructorAlert.style.marginBottom = "1rem";
-            instructorAlert.style.borderRadius = "0.5rem";
-            instructorAlert.innerHTML =
-                '<strong>Instructor:</strong> <a href="/instructor/dashboard" style="text-decoration: underline; color: inherit;">Kelola Course Anda</a>';
+            instructorAlert.className = "role-banner instructor-banner";
+            instructorAlert.innerHTML = '<strong>Instructor:</strong> <a href="/instructor/dashboard">Kelola Course</a>';
             contentEl?.prepend(instructorAlert);
         }
 
@@ -136,36 +133,34 @@ if (!user) {
     async function loadDashboard(user: any) {
         try {
             // 1. Fetch Enrollments
-            const { data: enrollments, error: enrollError } = await supabase
+            const { data: enrollments } = await supabase
                 .from("enrollments")
-                .select(
-                    `
-          status,
-          classes (id, title, description, price)
-        `,
-                )
+                .select("status, classes(id, title, description, price)")
                 .eq("user_id", user.id);
 
-            // 2. Fetch Exam Results
-            const { data: results, error: resError } = await supabase
-                .from("results")
-                .select(
-                    `
-          score,
-          exams (title)
-        `,
-                )
+            // 2. Fetch Exam Submissions with exam info
+            const { data: submissions } = await supabase
+                .from("exam_submissions")
+                .select("id, status, score, submitted_at, graded_at, exams(id, title, passing_score)")
                 .eq("user_id", user.id)
-                .order("id", { ascending: false })
-                .limit(5);
+                .order("submitted_at", { ascending: false });
 
             loadingEl!.style.display = "none";
             contentEl!.classList.remove("hidden");
 
-            if (statCourses)
-                statCourses.textContent = enrollments?.length.toString() || "0";
-            if (statExams)
-                statExams.textContent = results?.length.toString() || "0";
+            // Stats
+            if (statCourses) statCourses.textContent = enrollments?.length.toString() || "0";
+            const totalExams = submissions?.length || 0;
+            const gradedExams = submissions?.filter((s: any) => s.status === "graded").length || 0;
+            if (statExams) statExams.textContent = totalExams.toString();
+            if (statGraded) statGraded.textContent = gradedExams.toString();
+
+            // Average score
+            const gradedSubmissions = (submissions || []).filter((s: any) => s.status === "graded" && s.score !== null);
+            if (gradedSubmissions.length > 0) {
+                const avg = Math.round(gradedSubmissions.reduce((sum: number, s: any) => sum + (s.score || 0), 0) / gradedSubmissions.length);
+                if (statAvg) statAvg.textContent = `${avg}%`;
+            }
 
             // Render Enrollments
             if (!enrollments || enrollments.length === 0) {
@@ -177,26 +172,58 @@ if (!user) {
                     const card = document.createElement("div");
                     card.className = "course-card-compact";
                     card.innerHTML = `
-            <div class="content">
-              <h4>${course.title}</h4>
-              <div class="badge status-${enroll.status}">${enroll.status}</div>
-            </div>
-            <a href="/courses/${course.id}" class="btn btn-sm btn-primary">Go to Class</a>
-          `;
+                        <div class="content">
+                            <h4>${course.title}</h4>
+                            <div class="badge status-${enroll.status}">${enroll.status}</div>
+                        </div>
+                        <a href="/courses/${course.id}" class="btn btn-sm btn-primary">Buka Kelas</a>
+                    `;
                     enrollmentsGrid?.appendChild(card);
                 });
             }
 
-            // Render Results
-            if (results && results.length > 0) {
+            // Render Results - split into graded and pending
+            const graded = (submissions || []).filter((s: any) => s.status === "graded");
+            const pending = (submissions || []).filter((s: any) => s.status === "submitted");
+
+            if (graded.length > 0) {
                 noResultsEl!.classList.add("hidden");
-                results.forEach((res: any) => {
+                graded.forEach((sub: any) => {
+                    const exam = sub.exams;
+                    const score = sub.score || 0;
+                    const passingScore = exam?.passing_score || 60;
+                    const passed = score >= passingScore;
+                    const dateStr = sub.graded_at ? new Date(sub.graded_at).toLocaleDateString("id-ID") : "-";
+
                     const li = document.createElement("li");
+                    li.className = "result-item";
                     li.innerHTML = `
-            <span class="exam-name">${res.exams.title}</span>
-            <span class="score ${res.score >= 70 ? "pass" : "fail"}">${res.score}%</span>
-          `;
+                        <div class="result-info">
+                            <span class="exam-name">${exam?.title || "Ujian"}</span>
+                            <span class="result-date">Dinilai: ${dateStr}</span>
+                        </div>
+                        <span class="score ${passed ? "pass" : "fail"}">${score}%</span>
+                    `;
                     resultsList?.appendChild(li);
+                });
+            }
+
+            if (pending.length > 0) {
+                noPendingEl!.classList.add("hidden");
+                pending.forEach((sub: any) => {
+                    const exam = sub.exams;
+                    const dateStr = sub.submitted_at ? new Date(sub.submitted_at).toLocaleDateString("id-ID") : "-";
+
+                    const li = document.createElement("li");
+                    li.className = "result-item";
+                    li.innerHTML = `
+                        <div class="result-info">
+                            <span class="exam-name">${exam?.title || "Ujian"}</span>
+                            <span class="result-date">Dikumpulkan: ${dateStr}</span>
+                        </div>
+                        <span class="pending-badge">⏳ Menunggu Koreksi</span>
+                    `;
+                    pendingList?.appendChild(li);
                 });
             }
         } catch (err) {
@@ -206,217 +233,91 @@ if (!user) {
 </script>
 
 <style>
-    .dashboard-container {
-        max-width: 1200px;
-        margin: 0 auto;
-    }
+    .dashboard-container { max-width: 1200px; margin: 0 auto; }
 
     .header {
-        display: flex;
-        justify-content: space-between;
-        align-items: flex-end;
-        margin-bottom: 2.5rem;
-        padding-bottom: 1.5rem;
-        border-bottom: 1px solid var(--border-color);
-        gap: 1rem;
-        flex-wrap: wrap;
+        display: flex; justify-content: space-between; align-items: flex-end;
+        margin-bottom: 2.5rem; padding-bottom: 1.5rem;
+        border-bottom: 1px solid #e5e7eb; gap: 1rem; flex-wrap: wrap;
     }
-
     @media (max-width: 640px) {
-        .header {
-            flex-direction: column;
-            align-items: flex-start;
-        }
+        .header { flex-direction: column; align-items: flex-start; }
     }
-
-    .welcome h1 {
-        margin: 0;
-        font-size: 2rem;
-    }
-
-    .welcome p {
-        margin: 0.25rem 0 0 0;
-        color: #6b7280;
-    }
-
-    .header-actions {
-        display: flex;
-        gap: 1rem;
-        width: 100%;
-        max-width: 400px;
-    }
-
+    .welcome h1 { margin: 0; font-size: 2rem; }
+    .welcome p { margin: 0.25rem 0 0; color: #6b7280; }
+    .header-actions { display: flex; gap: 1rem; max-width: 400px; }
     @media (max-width: 640px) {
-        .header-actions {
-            max-width: none;
-        }
-        .header-actions .btn {
-            flex: 1;
-        }
+        .header-actions { max-width: none; }
+        .header-actions .btn { flex: 1; }
     }
+    .danger:hover { color: #ef4444; border-color: #ef4444; }
 
-    .danger:hover {
-        color: #ef4444;
-        border-color: #ef4444;
-    }
+    .role-banner { padding: 1rem; margin-bottom: 1rem; border-radius: 0.5rem; font-size: 0.9rem; }
+    .admin-banner { background: #fee2e2; color: #991b1b; }
+    .instructor-banner { background: #d1fae5; color: #065f46; }
 
     .stats-grid {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-        gap: 1.5rem;
-        margin-bottom: 3rem;
+        display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem; margin-bottom: 2.5rem;
     }
-
     .stat-card {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 1rem;
-        border: 1px solid var(--border-color);
-        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+        background: white; padding: 1.25rem; border-radius: 0.75rem;
+        border: 1px solid #e5e7eb; box-shadow: 0 1px 2px rgba(0,0,0,0.04);
     }
+    .stat-card.accent { background: linear-gradient(135deg, #eff6ff, #dbeafe); border-color: #93c5fd; }
+    .stat-label { display: block; font-size: 0.8rem; color: #6b7280; margin-bottom: 0.375rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.025em; }
+    .stat-value { font-size: 2rem; font-weight: 800; color: #2563eb; }
 
-    .stat-label {
-        display: block;
-        font-size: 0.875rem;
-        color: #6b7280;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-    }
+    .dashboard-grid { display: grid; grid-template-columns: 1fr 340px; gap: 2.5rem; }
+    @media (max-width: 1024px) { .dashboard-grid { grid-template-columns: 1fr; } }
 
-    .stat-value {
-        font-size: 2.25rem;
-        font-weight: 800;
-        color: var(--primary-color);
-    }
-
-    .dashboard-grid {
-        display: grid;
-        grid-template-columns: 1fr 320px;
-        gap: 2.5rem;
-    }
-
-    @media (max-width: 1024px) {
-        .dashboard-grid {
-            grid-template-columns: 1fr;
-        }
-    }
-
-    .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1.5rem;
-    }
-
-    .section-header h3 {
-        margin: 0;
-        font-size: 1.5rem;
-        font-weight: 800;
-    }
-
-    .link {
-        font-size: 0.875rem;
-        color: var(--primary-color);
-        text-decoration: none;
-        font-weight: 700;
-    }
+    .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; }
+    .section-header h3 { margin: 0; font-size: 1.25rem; font-weight: 800; }
+    .link { font-size: 0.875rem; color: #2563eb; text-decoration: none; font-weight: 700; }
 
     .course-card-compact {
-        background: white;
-        padding: 1.5rem;
-        border: 1px solid var(--border-color);
-        border-radius: 1rem;
-        margin-bottom: 1rem;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 1.5rem;
-        transition: all 0.2s ease;
+        background: white; padding: 1.25rem; border: 1px solid #e5e7eb; border-radius: 0.75rem;
+        margin-bottom: 0.75rem; display: flex; justify-content: space-between;
+        align-items: center; gap: 1rem; transition: all 0.2s;
     }
-
-    .course-card-compact:hover {
-        border-color: var(--primary-color);
-        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    }
-
+    .course-card-compact:hover { border-color: #2563eb; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
     @media (max-width: 640px) {
-        .course-card-compact {
-            flex-direction: column;
-            align-items: stretch;
-            gap: 1rem;
-            text-align: center;
-        }
+        .course-card-compact { flex-direction: column; align-items: stretch; text-align: center; }
     }
+    .course-card-compact h4 { margin: 0 0 0.375rem; font-size: 1.05rem; font-weight: 700; }
 
-    .course-card-compact h4 {
-        margin: 0 0 0.5rem 0;
-        font-size: 1.1rem;
-        font-weight: 700;
-    }
+    .badge { font-size: 0.7rem; text-transform: uppercase; font-weight: 800; padding: 0.2rem 0.6rem; border-radius: 999px; background: #f3f4f6; }
+    .status-active { background: #dcfce7; color: #166534; }
 
-    .badge {
-        font-size: 0.75rem;
-        text-transform: uppercase;
-        font-weight: 800;
-        padding: 0.25rem 0.75rem;
-        border-radius: 999px;
-        background: #f3f4f6;
-    }
+    .sidebar h3 { font-size: 1.1rem; font-weight: 800; margin-bottom: 1rem; }
+    .mt-2 { margin-top: 2rem; }
 
-    .status-active {
-        background: #dcfce7;
-        color: #166534;
+    .activity-list { list-style: none; padding: 0; margin: 0; }
+    .result-item {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 0.875rem 0; border-bottom: 1px solid #f1f5f9; gap: 0.75rem;
     }
+    .result-info { flex: 1; min-width: 0; }
+    .exam-name { display: block; font-weight: 600; font-size: 0.9rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .result-date { display: block; font-size: 0.75rem; color: #9ca3af; margin-top: 0.125rem; }
 
-    .activity-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
+    .score { font-weight: 800; font-size: 1rem; white-space: nowrap; }
+    .pass { color: #059669; }
+    .fail { color: #dc2626; }
+    .pending-badge { font-size: 0.75rem; color: #d97706; background: #fef3c7; padding: 0.25rem 0.625rem; border-radius: 999px; font-weight: 600; white-space: nowrap; }
 
-    .sidebar h3 {
-        font-size: 1.25rem;
-        font-weight: 800;
-        margin-bottom: 1.5rem;
-    }
+    .empty-state { text-align: center; padding: 3rem 2rem; background: white; border: 2px dashed #e5e7eb; border-radius: 0.75rem; }
+    .empty-small { font-size: 0.8rem; color: #9ca3af; padding: 1.5rem 0; text-align: center; background: #fff; border-radius: 0.75rem; border: 1px solid #f1f5f9; }
 
-    .activity-list li {
-        display: flex;
-        justify-content: space-between;
-        padding: 1rem 0;
-        border-bottom: 1px solid #f1f5f9;
-        font-size: 0.95rem;
-    }
+    .hidden { display: none; }
 
-    .score {
-        font-weight: 800;
-    }
-    .pass {
-        color: #059669;
-    }
-    .fail {
-        color: #dc2626;
-    }
+    .btn { padding: 0.5rem 1rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; border: none; font-size: 0.875rem; text-decoration: none; display: inline-flex; align-items: center; justify-content: center; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-outline { background: white; border: 1px solid #d1d5db; color: #374151; }
+    .btn-sm { padding: 0.375rem 0.875rem; font-size: 0.8rem; }
 
-    .empty-state {
-        text-align: center;
-        padding: 4rem 2rem;
-        background: white;
-        border: 2px dashed var(--border-color);
-        border-radius: 1rem;
-    }
-
-    .empty-small {
-        font-size: 0.875rem;
-        color: #9ca3af;
-        padding: 2rem 0;
-        text-align: center;
-        background: #fff;
-        border-radius: 1rem;
-        border: 1px solid var(--border-color);
-    }
-
-    .hidden {
-        display: none;
-    }
+    .spinner { width: 32px; height: 32px; border: 3px solid #e5e7eb; border-top-color: #2563eb; border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 1rem; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .state-message { text-align: center; padding: 3rem; color: #6b7280; }
 </style>

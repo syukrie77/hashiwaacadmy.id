@@ -1,65 +1,95 @@
 import { defineMiddleware } from "astro:middleware";
-import { getSupabaseServerClient, supabase } from "./lib/supabase";
+import { getSupabaseServerClient } from "./lib/supabase";
 
 export const onRequest = defineMiddleware(async (context, next) => {
     const url = new URL(context.request.url);
     const path = url.pathname;
 
-    // Skip auth check ONLY for static assets
-    const publicPaths = ["/", "/login", "/register"];
-    const isPublicPage = publicPaths.includes(path);
+    // Skip entirely for static assets
     const isStaticAsset = path.startsWith("/favicon") || path.startsWith("/_astro");
-    const isApiRoute = path.startsWith("/api/");
-    const isAuthApi = path.startsWith("/api/auth/");
-
     if (isStaticAsset) {
         return next();
     }
 
-    // 1. Initialize Supabase SSR client (ONLY for auth.getUser - talks to GoTrue, not PostgREST)
-    const supabaseServer = getSupabaseServerClient(context);
+    // Public paths that don't need auth check at all
+    const publicPaths = ["/", "/login", "/register"];
+    const isPublicPage = publicPaths.includes(path);
+    const isApiRoute = path.startsWith("/api/");
 
-    // 2. Validate session directly from Supabase via getUser()
-    const { data: { user }, error } = await supabaseServer.auth.getUser();
+    // Default: no user
+    context.locals.user = null;
 
-    // 3. Inject user data into Astro.locals if valid
-    if (user) {
-        // Fetch profile using BASIC client (avoids PostgREST "role "" does not exist" error)
-        const { data: profile, error: profileError } = await (supabase as any)
-            .from("users")
-            .select("*")
-            .eq("id", user.id)
-            .single();
+    // Only attempt Supabase auth for non-public pages and API routes that need it
+    if (!isPublicPage) {
+        try {
+            // 1. Initialize Supabase SSR client
+            const supabaseServer = getSupabaseServerClient(context);
 
-        if (profileError) {
-            console.error("Error fetching user profile:", profileError.message, profileError.code);
+            // 2. Validate session directly from Supabase via getUser()
+            const { data: { user }, error } = await supabaseServer.auth.getUser();
+
+            if (error) {
+                console.error("[Middleware] getUser error:", error.message);
+            }
+
+            // 3. Inject user data into Astro.locals if valid
+            if (user) {
+                try {
+                    // Fetch profile using SERVER client (avoids PostgREST issues)
+                    const { data: profile, error: profileError } = await supabaseServer
+                        .from("users")
+                        .select("*")
+                        .eq("id", user.id)
+                        .single();
+
+                    if (profileError) {
+                        console.error("[Middleware] Profile fetch error:", profileError.message);
+                    }
+
+                    const profileData = profile as any;
+                    if (profileData) {
+                        context.locals.user = {
+                            id: user.id,
+                            name: profileData.name,
+                            email: user.email!,
+                            role: profileData.role,
+                        };
+                    } else {
+                        // Fallback: try to read role from auth metadata (set via SQL)
+                        const metaRole =
+                            user.app_metadata?.role ||
+                            user.user_metadata?.role ||
+                            "student";
+                        console.warn(
+                            `[Middleware] Profile not found for ${user.email}. Using metadata role: ${metaRole}`
+                        );
+                        context.locals.user = {
+                            id: user.id,
+                            name: user.user_metadata?.name || user.email!.split("@")[0],
+                            email: user.email!,
+                            role: metaRole,
+                        };
+                    }
+                } catch (profileErr) {
+                    console.error("[Middleware] Profile fetch crashed:", profileErr);
+                    // Still set user from auth data even if profile fetch fails
+                    const metaRole =
+                        user.app_metadata?.role ||
+                        user.user_metadata?.role ||
+                        "student";
+                    context.locals.user = {
+                        id: user.id,
+                        name: user.user_metadata?.name || user.email!.split("@")[0],
+                        email: user.email!,
+                        role: metaRole,
+                    };
+                }
+            }
+        } catch (err) {
+            // CRITICAL: Never crash the middleware - log and continue as unauthenticated
+            console.error("[Middleware] Auth check failed:", err);
+            context.locals.user = null;
         }
-
-        if (profile) {
-            context.locals.user = {
-                id: user.id,
-                name: profile.name,
-                email: user.email!,
-                role: profile.role,
-            };
-        } else {
-            // Fallback: try to read role from auth metadata (set via SQL)
-            const metaRole =
-                user.app_metadata?.role ||
-                user.user_metadata?.role ||
-                "student";
-            console.warn(
-                `Profile not found for ${user.email} (RLS error?). Using metadata role: ${metaRole}`
-            );
-            context.locals.user = {
-                id: user.id,
-                name: user.user_metadata?.name || user.email!.split("@")[0],
-                email: user.email!,
-                role: metaRole,
-            };
-        }
-    } else {
-        context.locals.user = null;
     }
 
     // 4. Implement Route Protection System (ONLY for page routes, NOT API routes)

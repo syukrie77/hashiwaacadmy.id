@@ -51,11 +51,12 @@ if (modulesError) {
     console.error("Error fetching modules:", modulesError);
 }
 
-// Fetch Exams
+// Fetch Exams (only published ones for students)
 const { data: courseExams, error: examsError } = await supabase
     .from("exams")
     .select("*")
-    .eq("class_id", id);
+    .eq("class_id", id)
+    .eq("is_published", true);
 
 // Prepare modules list
 const courseModules = sortedCourseModules || [];
@@ -226,40 +227,40 @@ const courseModules = sortedCourseModules || [];
                     )
                 }
             </div>
+
+            <!-- Exams Section inside sidebar -->
+            {
+                courseExams && courseExams.length > 0 && (
+                    <div class="exams-section">
+                        <h3>📝 Ujian</h3>
+                        <ul class="materials-list">
+                            {courseExams.map((exam: any) => (
+                                <li class="exam-item-link">
+                                    <a
+                                        href={`/courses/${id}/exams/${exam.id}`}
+                                        class="exam-link"
+                                    >
+                                        <span class="material-type">📝</span>
+                                        <span class="material-title">
+                                            {exam.title}
+                                        </span>
+                                        <span class="duration">
+                                            {exam.duration} min
+                                        </span>
+                                    </a>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )
+            }
         </div>
 
-        <!-- Exams Section -->
-        {
-            courseExams && courseExams.length > 0 && (
-                <div class="exams-section">
-                    <h3>Exams</h3>
-                    <ul class="materials-list">
-                        {courseExams.map((exam: any) => (
-                            <li class="exam-item-link">
-                                <a
-                                    href={`/courses/${id}/exams/${exam.id}`}
-                                    class="exam-link"
-                                >
-                                    <span class="material-type">📝</span>
-                                    <span class="material-title">
-                                        {exam.title}
-                                    </span>
-                                    <span class="duration">
-                                        {exam.duration} min
-                                    </span>
-                                </a>
-                            </li>
-                        ))}
-                    </ul>
-                </div>
-            )
-        }
-    </div>
-
-    <div class="main-content">
-        <div class="placeholder-viewer">
-            <h2>Select a lesson to start</h2>
-            <p>Your learning journey begins here.</p>
+        <div class="main-content">
+            <div class="placeholder-viewer">
+                <h2>Select a lesson to start</h2>
+                <p>Your learning journey begins here.</p>
+            </div>
         </div>
     </div>
 </Layout>
@@ -863,10 +864,6 @@ const courseModules = sortedCourseModules || [];
     }
     .exam-item-link:hover {
         background-color: #f0fdf4;
-    }
-        opacity: 0.5;
-        pointer-events: none;
-        background: #f3f4f6;
     }
 
     .modal {

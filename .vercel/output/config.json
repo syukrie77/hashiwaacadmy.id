@@ -88,6 +88,22 @@
 			"dest": "_render"
 		},
 		{
+			"src": "^/instructor/courses/([^/]+?)/exams/([^/]+?)/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/instructor/courses/([^/]+?)/exams/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/instructor/courses/([^/]+?)/grading/([^/]+?)/?$",
+			"dest": "_render"
+		},
+		{
+			"src": "^/instructor/courses/([^/]+?)/grading/?$",
+			"dest": "_render"
+		},
+		{
 			"src": "^/instructor/courses/([^/]+?)/students/?$",
 			"dest": "_render"
 		},

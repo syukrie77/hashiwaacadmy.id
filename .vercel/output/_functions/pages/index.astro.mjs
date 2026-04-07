@@ -1,15 +1,23 @@
-import { e as createComponent, k as renderComponent, r as renderTemplate, m as maybeRenderHead, g as addAttribute } from '../chunks/astro/server_BeBNlddD.mjs';
+import { e as createComponent, k as renderComponent, r as renderTemplate, m as maybeRenderHead, g as addAttribute } from '../chunks/astro/server_DH5mszyI.mjs';
 import 'piccolore';
-import { $ as $$Layout } from '../chunks/Layout_hC64G2nb.mjs';
-import { s as supabase } from '../chunks/supabase_DDcE5sYV.mjs';
+import { $ as $$Layout } from '../chunks/Layout_5IANKJKH.mjs';
+import { s as supabase } from '../chunks/supabase_CLFJcle_.mjs';
 /* empty css                                 */
 export { renderers } from '../renderers.mjs';
 
 const $$Index = createComponent(async ($$result, $$props, $$slots) => {
-  const { data: classesData, error } = await supabase.from("classes").select("*").eq("is_active", true).order("title");
-  const classes = classesData;
-  if (error) {
-    console.error("Error fetching classes:", error);
+  let classes = null;
+  {
+    try {
+      const { data: classesData, error } = await supabase.from("classes").select("*").eq("is_active", true).order("title");
+      if (error) {
+        console.error("Error fetching classes:", error);
+      } else {
+        classes = classesData;
+      }
+    } catch (err) {
+      console.error("Failed to fetch classes:", err);
+    }
   }
   return renderTemplate`${renderComponent($$result, "Layout", $$Layout, { "data-astro-cid-j7pv25f6": true }, { "default": async ($$result2) => renderTemplate`  ${maybeRenderHead()}<section class="hero-section" data-astro-cid-j7pv25f6> <div class="hero-content" data-astro-cid-j7pv25f6> <span class="badge-accent" data-astro-cid-j7pv25f6>Japanese Learning Center</span> <h1 data-astro-cid-j7pv25f6>
 Dari kelas ke karier,<br data-astro-cid-j7pv25f6><span class="text-primary" data-astro-cid-j7pv25f6>Lokal ke Global.</span> </h1> <p data-astro-cid-j7pv25f6>

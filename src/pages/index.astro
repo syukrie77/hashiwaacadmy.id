@@ -1,16 +1,25 @@
 ---
 import Layout from "../layouts/Layout.astro";
-import { supabase } from "../lib/supabase";
-const { data: classesData, error } = await supabase
-	.from("classes")
-	.select("*")
-	.eq("is_active", true)
-	.order("title");
+import { supabase, isSupabaseConfigured } from "../lib/supabase";
 
-const classes = classesData as any[] | null;
+let classes: any[] | null = null;
 
-if (error) {
-	console.error("Error fetching classes:", error);
+if (isSupabaseConfigured) {
+	try {
+		const { data: classesData, error } = await supabase
+			.from("classes")
+			.select("*")
+			.eq("is_active", true)
+			.order("title");
+
+		if (error) {
+			console.error("Error fetching classes:", error);
+		} else {
+			classes = classesData as any[] | null;
+		}
+	} catch (err) {
+		console.error("Failed to fetch classes:", err);
+	}
 }
 ---
 

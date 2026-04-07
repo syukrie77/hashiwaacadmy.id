@@ -1,48 +1,70 @@
-import { d as defineMiddleware, s as sequence } from './chunks/index_VXhmQjC3.mjs';
-import { g as getSupabaseServerClient, s as supabase } from './chunks/supabase_DDcE5sYV.mjs';
+import { d as defineMiddleware, s as sequence } from './chunks/index_CAVbSk8R.mjs';
+import { g as getSupabaseServerClient } from './chunks/supabase_CLFJcle_.mjs';
 import 'es-module-lexer';
-import './chunks/astro-designed-error-pages_Bd2OqEtw.mjs';
+import './chunks/astro-designed-error-pages_B0Kl6Wwy.mjs';
 import 'piccolore';
-import './chunks/astro/server_BeBNlddD.mjs';
+import './chunks/astro/server_DH5mszyI.mjs';
 import 'clsx';
 
 const onRequest$1 = defineMiddleware(async (context, next) => {
   const url = new URL(context.request.url);
   const path = url.pathname;
   const isStaticAsset = path.startsWith("/favicon") || path.startsWith("/_astro");
-  const isApiRoute = path.startsWith("/api/");
-  path.startsWith("/api/auth/");
   if (isStaticAsset) {
     return next();
   }
-  const supabaseServer = getSupabaseServerClient(context);
-  const { data: { user }, error } = await supabaseServer.auth.getUser();
-  if (user) {
-    const { data: profile, error: profileError } = await supabase.from("users").select("*").eq("id", user.id).single();
-    if (profileError) {
-      console.error("Error fetching user profile:", profileError.message, profileError.code);
+  const publicPaths = ["/", "/login", "/register"];
+  const isPublicPage = publicPaths.includes(path);
+  const isApiRoute = path.startsWith("/api/");
+  context.locals.user = null;
+  if (!isPublicPage) {
+    try {
+      const supabaseServer = getSupabaseServerClient(context);
+      const { data: { user }, error } = await supabaseServer.auth.getUser();
+      if (error) {
+        console.error("[Middleware] getUser error:", error.message);
+      }
+      if (user) {
+        try {
+          const { data: profile, error: profileError } = await supabaseServer.from("users").select("*").eq("id", user.id).single();
+          if (profileError) {
+            console.error("[Middleware] Profile fetch error:", profileError.message);
+          }
+          const profileData = profile;
+          if (profileData) {
+            context.locals.user = {
+              id: user.id,
+              name: profileData.name,
+              email: user.email,
+              role: profileData.role
+            };
+          } else {
+            const metaRole = user.app_metadata?.role || user.user_metadata?.role || "student";
+            console.warn(
+              `[Middleware] Profile not found for ${user.email}. Using metadata role: ${metaRole}`
+            );
+            context.locals.user = {
+              id: user.id,
+              name: user.user_metadata?.name || user.email.split("@")[0],
+              email: user.email,
+              role: metaRole
+            };
+          }
+        } catch (profileErr) {
+          console.error("[Middleware] Profile fetch crashed:", profileErr);
+          const metaRole = user.app_metadata?.role || user.user_metadata?.role || "student";
+          context.locals.user = {
+            id: user.id,
+            name: user.user_metadata?.name || user.email.split("@")[0],
+            email: user.email,
+            role: metaRole
+          };
+        }
+      }
+    } catch (err) {
+      console.error("[Middleware] Auth check failed:", err);
+      context.locals.user = null;
     }
-    if (profile) {
-      context.locals.user = {
-        id: user.id,
-        name: profile.name,
-        email: user.email,
-        role: profile.role
-      };
-    } else {
-      const metaRole = user.app_metadata?.role || user.user_metadata?.role || "student";
-      console.warn(
-        `Profile not found for ${user.email} (RLS error?). Using metadata role: ${metaRole}`
-      );
-      context.locals.user = {
-        id: user.id,
-        name: user.user_metadata?.name || user.email.split("@")[0],
-        email: user.email,
-        role: metaRole
-      };
-    }
-  } else {
-    context.locals.user = null;
   }
   if (!isApiRoute) {
     const isLoggedIn = !!context.locals.user;

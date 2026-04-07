@@ -1,6 +1,6 @@
 import { renderers } from './renderers.mjs';
-import { c as createExports, s as serverEntrypointModule } from './chunks/_@astrojs-ssr-adapter_BlYIi5Yp.mjs';
-import { manifest } from './manifest_DBSamfNY.mjs';
+import { c as createExports, s as serverEntrypointModule } from './chunks/_@astrojs-ssr-adapter_BDmNGaIt.mjs';
+import { manifest } from './manifest_LwKmz74p.mjs';
 
 const serverIslandMap = new Map();;
 
@@ -22,13 +22,17 @@ const _page14 = () => import('./pages/courses/_courseid_/learn/_materialid_.astr
 const _page15 = () => import('./pages/courses/_id_.astro.mjs');
 const _page16 = () => import('./pages/dashboard.astro.mjs');
 const _page17 = () => import('./pages/instructor/courses/_id_/builder.astro.mjs');
-const _page18 = () => import('./pages/instructor/courses/_id_/students.astro.mjs');
-const _page19 = () => import('./pages/instructor/courses/_id_.astro.mjs');
-const _page20 = () => import('./pages/instructor/dashboard.astro.mjs');
-const _page21 = () => import('./pages/login.astro.mjs');
-const _page22 = () => import('./pages/profile.astro.mjs');
-const _page23 = () => import('./pages/register.astro.mjs');
-const _page24 = () => import('./pages/index.astro.mjs');
+const _page18 = () => import('./pages/instructor/courses/_id_/exams/_examid_.astro.mjs');
+const _page19 = () => import('./pages/instructor/courses/_id_/exams.astro.mjs');
+const _page20 = () => import('./pages/instructor/courses/_id_/grading/_submissionid_.astro.mjs');
+const _page21 = () => import('./pages/instructor/courses/_id_/grading.astro.mjs');
+const _page22 = () => import('./pages/instructor/courses/_id_/students.astro.mjs');
+const _page23 = () => import('./pages/instructor/courses/_id_.astro.mjs');
+const _page24 = () => import('./pages/instructor/dashboard.astro.mjs');
+const _page25 = () => import('./pages/login.astro.mjs');
+const _page26 = () => import('./pages/profile.astro.mjs');
+const _page27 = () => import('./pages/register.astro.mjs');
+const _page28 = () => import('./pages/index.astro.mjs');
 const pageMap = new Map([
     ["node_modules/astro/dist/assets/endpoint/generic.js", _page0],
     ["src/pages/admin/classes.astro", _page1],
@@ -48,13 +52,17 @@ const pageMap = new Map([
     ["src/pages/courses/[id].astro", _page15],
     ["src/pages/dashboard.astro", _page16],
     ["src/pages/instructor/courses/[id]/builder.astro", _page17],
-    ["src/pages/instructor/courses/[id]/students.astro", _page18],
-    ["src/pages/instructor/courses/[id]/index.astro", _page19],
-    ["src/pages/instructor/dashboard.astro", _page20],
-    ["src/pages/login.astro", _page21],
-    ["src/pages/profile.astro", _page22],
-    ["src/pages/register.astro", _page23],
-    ["src/pages/index.astro", _page24]
+    ["src/pages/instructor/courses/[id]/exams/[examId].astro", _page18],
+    ["src/pages/instructor/courses/[id]/exams.astro", _page19],
+    ["src/pages/instructor/courses/[id]/grading/[submissionId].astro", _page20],
+    ["src/pages/instructor/courses/[id]/grading.astro", _page21],
+    ["src/pages/instructor/courses/[id]/students.astro", _page22],
+    ["src/pages/instructor/courses/[id]/index.astro", _page23],
+    ["src/pages/instructor/dashboard.astro", _page24],
+    ["src/pages/login.astro", _page25],
+    ["src/pages/profile.astro", _page26],
+    ["src/pages/register.astro", _page27],
+    ["src/pages/index.astro", _page28]
 ]);
 
 const _manifest = Object.assign(manifest, {
@@ -65,7 +73,7 @@ const _manifest = Object.assign(manifest, {
     middleware: () => import('./_astro-internal_middleware.mjs')
 });
 const _args = {
-    "middlewareSecret": "c69d7d39-be06-4d00-a327-f7b300f5cc16",
+    "middlewareSecret": "b5783e84-dcaa-4fbb-9505-47bd44c53ae1",
     "skewProtection": false
 };
 const _exports = createExports(_manifest, _args);

@@ -1,0 +1,19 @@
+import{s as u}from"./supabase.BC4iv9s-.js";const g=document.getElementById("user-data"),p=g?g.dataset.user:null,L=document.getElementById("loading"),i=document.getElementById("dashboard-content"),f=document.getElementById("user-name"),S=document.getElementById("enrollments-grid"),_=document.getElementById("no-enrollments"),$=document.getElementById("results-list"),C=document.getElementById("no-results"),w=document.getElementById("pending-list"),D=document.getElementById("no-pending"),h=document.getElementById("stat-courses"),E=document.getElementById("stat-exams"),y=document.getElementById("stat-graded"),I=document.getElementById("stat-avg"),M=document.getElementById("logout-btn");if(!p)window.location.href="/login";else{const a=JSON.parse(p);if(f&&(f.textContent=a.name),a.role==="admin"){const e=document.createElement("div");e.className="role-banner admin-banner",e.innerHTML='<strong>Admin:</strong> <a href="/admin/dashboard">Kelola Platform</a>',i?.prepend(e)}if(a.role==="instructor"){const e=document.createElement("div");e.className="role-banner instructor-banner",e.innerHTML='<strong>Instructor:</strong> <a href="/instructor/dashboard">Kelola Course</a>',i?.prepend(e)}N(a)}M?.addEventListener("click",async()=>{try{await fetch("/api/auth/logout",{method:"POST"}),localStorage.removeItem("user"),window.location.href="/"}catch(a){console.error(a)}});async function N(a){try{const{data:e}=await u.from("enrollments").select("status, classes(id, title, description, price)").eq("user_id",a.id),{data:o}=await u.from("exam_submissions").select("id, status, score, submitted_at, graded_at, exams(id, title, passing_score)").eq("user_id",a.id).order("submitted_at",{ascending:!1});L.style.display="none",i.classList.remove("hidden"),h&&(h.textContent=e?.length.toString()||"0");const b=o?.length||0,v=o?.filter(t=>t.status==="graded").length||0;E&&(E.textContent=b.toString()),y&&(y.textContent=v.toString());const r=(o||[]).filter(t=>t.status==="graded"&&t.score!==null);if(r.length>0){const t=Math.round(r.reduce((s,n)=>s+(n.score||0),0)/r.length);I&&(I.textContent=`${t}%`)}!e||e.length===0?_.classList.remove("hidden"):e.forEach(t=>{const s=t.classes;if(!s)return;const n=document.createElement("div");n.className="course-card-compact",n.innerHTML=`
+                        <div class="content">
+                            <h4>${s.title}</h4>
+                            <div class="badge status-${t.status}">${t.status}</div>
+                        </div>
+                        <a href="/courses/${s.id}" class="btn btn-sm btn-primary">Buka Kelas</a>
+                    `,S?.appendChild(n)});const l=(o||[]).filter(t=>t.status==="graded"),m=(o||[]).filter(t=>t.status==="submitted");l.length>0&&(C.classList.add("hidden"),l.forEach(t=>{const s=t.exams,n=t.score||0,d=s?.passing_score||60,x=n>=d,B=t.graded_at?new Date(t.graded_at).toLocaleDateString("id-ID"):"-",c=document.createElement("li");c.className="result-item",c.innerHTML=`
+                        <div class="result-info">
+                            <span class="exam-name">${s?.title||"Ujian"}</span>
+                            <span class="result-date">Dinilai: ${B}</span>
+                        </div>
+                        <span class="score ${x?"pass":"fail"}">${n}%</span>
+                    `,$?.appendChild(c)})),m.length>0&&(D.classList.add("hidden"),m.forEach(t=>{const s=t.exams,n=t.submitted_at?new Date(t.submitted_at).toLocaleDateString("id-ID"):"-",d=document.createElement("li");d.className="result-item",d.innerHTML=`
+                        <div class="result-info">
+                            <span class="exam-name">${s?.title||"Ujian"}</span>
+                            <span class="result-date">Dikumpulkan: ${n}</span>
+                        </div>
+                        <span class="pending-badge">⏳ Menunggu Koreksi</span>
+                    `,w?.appendChild(d)}))}catch(e){console.error(e)}}

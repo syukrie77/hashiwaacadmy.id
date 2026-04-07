@@ -1,87 +1,95 @@
 ---
 import Layout from "../../../../layouts/Layout.astro";
-import { supabase } from "../../../../lib/supabase";
-
-const { courseId, id } = Astro.params;
 export const prerender = false;
 
-if (!courseId || !id) {
-    return Astro.redirect("/404");
-}
+const { courseId, id } = Astro.params;
 
 const user = Astro.locals.user;
 if (!user) {
     return Astro.redirect("/login");
 }
-// Check logged in user? (Client-side usually, but server-side check is good too)
-// For simplicity in Astro, we might rely on client-side redirect or middleware.
 ---
 
 <Layout>
     <div id="user-data" data-user={JSON.stringify(user)} class="hidden"></div>
     <div class="exam-container">
         <header class="exam-header">
-            <h1 id="exam-title">Loading Exam...</h1>
+            <div>
+                <h1 id="exam-title">Memuat Ujian...</h1>
+                <p id="exam-desc" class="muted"></p>
+            </div>
             <div class="exam-meta">
-                <span id="timer" class="timer badge">--:--</span>
+                <span id="timer" class="timer">--:--</span>
             </div>
         </header>
 
-        <main class="exam-content">
-            <div id="loading" class="state-message">Preparing your exam...</div>
-            <div id="error-msg" class="error-message hidden"></div>
+        <div id="loading" class="state-msg">Mempersiapkan ujian...</div>
+        <div id="error-msg" class="error-box hidden"></div>
 
-            <form id="exam-form" class="hidden">
-                <div id="questions-container"></div>
-
-                <div class="exam-actions">
-                    <button type="submit" class="btn btn-primary btn-lg"
-                        >Submit Exam</button
-                    >
-                </div>
-            </form>
-
-            <div id="result-view" class="hidden result-container">
-                <h2>Exam Submitted!</h2>
-                <p>Your answers have been recorded.</p>
-                <div id="score-display" class="score-card hidden">
-                    <span class="score-label">Your Score:</span>
-                    <span class="score-value" id="final-score">--</span>
-                </div>
-                <div class="actions">
-                    <a href={`/courses/${courseId}`} class="btn btn-outline"
-                        >Back to Course</a
-                    >
-                </div>
+        <!-- EXAM FORM -->
+        <form id="exam-form" class="hidden">
+            <div id="questions-container"></div>
+            <div class="exam-actions">
+                <button type="submit" class="btn btn-primary btn-lg">📤 Kumpulkan Jawaban</button>
             </div>
-        </main>
+        </form>
+
+        <!-- SUBMITTED - Waiting for grading -->
+        <div id="submitted-view" class="hidden result-box">
+            <div class="result-icon">📤</div>
+            <h2>Jawaban Berhasil Dikumpulkan!</h2>
+            <p>Jawaban kamu sudah tersimpan. Guru akan segera mengoreksi jawaban essay kamu.</p>
+            <div id="mcq-preview" class="hidden">
+                <h3>Ringkasan Jawaban Otomatis</h3>
+                <div id="mcq-summary"></div>
+            </div>
+            <div class="actions">
+                <a href="/dashboard" class="btn btn-outline">← Kembali ke Dashboard</a>
+            </div>
+        </div>
+
+        <!-- GRADED - Show results with feedback -->
+        <div id="graded-view" class="hidden result-box">
+            <div class="result-header">
+                <h2>📋 Hasil Ujian</h2>
+                <div class="big-score">
+                    <span id="final-score" class="score-num">-</span>
+                    <span class="score-max">/ 100</span>
+                </div>
+                <p id="pass-status" class="pass-badge"></p>
+            </div>
+
+            <div id="graded-details" class="graded-details"></div>
+
+            <div class="actions">
+                <a href="/dashboard" class="btn btn-outline">← Kembali ke Dashboard</a>
+            </div>
+        </div>
     </div>
 </Layout>
 
 <script>
     import { supabase } from "../../../../lib/supabase";
 
-    // Params from URL
     const pathParts = window.location.pathname.split("/");
-    const courseId = pathParts[pathParts.length - 3];
-    const examId = pathParts[pathParts.length - 1];
+    const courseId = pathParts[2];
+    const examId = pathParts[4];
 
-    let submissionId = null;
-    let examDuration = 0; // minutes
-    let examStartTime = null;
+    let submissionId: string | null = null;
+    let examDuration = 60;
+    let examStartTime: Date | null = null;
+    let examPassingScore = 60;
 
     async function init() {
-        // Ambil data user
         const userEl = document.getElementById("user-data");
-        const userData = userEl ? userEl.dataset.user : null;
+        const userData = userEl?.dataset.user;
         if (!userData || userData === "null") {
             window.location.href = "/login";
             return;
         }
-
         const user = JSON.parse(userData);
 
-        // Pastikan user ada di tabel users
+        // Ensure user exists in users table
         try {
             const { data: existing } = await supabase
                 .from("users")
@@ -99,11 +107,11 @@ if (!user) {
             }
         } catch (err) {
             console.error(err);
-            showError("Gagal memulai ujian (profil). Silakan hubungi support.");
+            showError("Gagal memulai ujian. Silakan hubungi support.");
             return;
         }
 
-        // 1. Fetch Exam Details
+        // 1. Fetch exam
         const { data: exam, error: exError } = await supabase
             .from("exams")
             .select("*")
@@ -111,15 +119,17 @@ if (!user) {
             .single();
 
         if (exError || !exam) {
-            showError("Exam not found or error loading.");
+            showError("Ujian tidak ditemukan.");
             return;
         }
 
-        document.getElementById("exam-title").textContent = exam.title;
+        document.getElementById("exam-title")!.textContent = exam.title;
+        document.getElementById("exam-desc")!.textContent = exam.description || "";
         examDuration = exam.duration || 60;
+        examPassingScore = exam.passing_score || 60;
 
-        // 2. Check Submission Status
-        let { data: sub, error: subError } = await supabase
+        // 2. Check submission
+        const { data: sub } = await supabase
             .from("exam_submissions")
             .select("*")
             .eq("user_id", user.id)
@@ -127,7 +137,7 @@ if (!user) {
             .maybeSingle();
 
         if (!sub) {
-            // Start new submission
+            // Start new
             const { data: newSub, error: createError } = await supabase
                 .from("exam_submissions")
                 .insert({
@@ -141,13 +151,7 @@ if (!user) {
 
             if (createError) {
                 console.error(createError);
-                if (createError.code === "23503") {
-                    showError(
-                        "Akun belum sinkron. Silakan logout lalu login ulang untuk menyamakan akun Supabase Auth dengan profil.",
-                    );
-                } else {
-                    showError("Failed to start exam. Please contact support.");
-                }
+                showError("Gagal memulai ujian. Coba logout lalu login ulang.");
                 return;
             }
             submissionId = newSub.id;
@@ -156,204 +160,165 @@ if (!user) {
             submissionId = sub.id;
             examStartTime = new Date(sub.started_at);
 
-            if (sub.status === "submitted" || sub.status === "graded") {
-                showResult(sub);
+            if (sub.status === "graded") {
+                await showGradedResult(sub);
+                return;
+            }
+            if (sub.status === "submitted") {
+                showSubmittedView();
                 return;
             }
         }
 
-        // 3. Fetch Questions
-        const { data: questions, error: qError } = await supabase
+        // 3. Load questions
+        let { data: questions, error: qError } = await supabase
             .from("questions")
-            .select(
-                `
-                *,
-                question_options (id, option_text, order_no)
-            `,
-            )
+            .select("*, question_options(id, option_text, order_no)")
             .eq("exam_id", examId)
             .order("order_no", { ascending: true });
 
+        // Fallback: if order_no column doesn't exist, try without ordering
+        if (qError && qError.message?.includes("order_no")) {
+            console.warn("order_no column missing, retrying without order");
+            const fallback = await supabase
+                .from("questions")
+                .select("*, question_options(id, option_text, order_no)")
+                .eq("exam_id", examId);
+            questions = fallback.data;
+            qError = fallback.error;
+        }
+
+        // Fallback: if question_options join fails, try without it
+        if (qError && qError.message?.includes("question_options")) {
+            console.warn("question_options join failed, retrying without join");
+            const fallback2 = await supabase
+                .from("questions")
+                .select("*")
+                .eq("exam_id", examId);
+            questions = fallback2.data;
+            qError = fallback2.error;
+        }
+
         if (qError) {
-            showError("Failed to load questions.");
+            console.error("Failed to load questions:", qError);
+            showError("Gagal memuat soal. Error: " + (qError.message || "Unknown error. Pastikan RLS tabel questions & question_options sudah di-fix."));
             return;
         }
 
-        // Note: For students, we should NOT verify is_correct on frontend ideally.
-        // But RLS "Public read options" usually returns all columns.
-        // Ideally we should filter out is_correct for students via RLS or Select query, but
-        // for this MVP we assume the student isn't inspecting network tab deeply or we select specific columns.
-        // We selected specific columns above for question_options! (id, option_text, order_no). Good.
-
-        renderQuestions(questions);
+        renderQuestions(questions || []);
         startTimer();
     }
 
-    function renderQuestions(questions) {
-        const container = document.getElementById("questions-container");
+    function renderQuestions(questions: any[]) {
+        const container = document.getElementById("questions-container")!;
         container.innerHTML = "";
 
-        questions.forEach((q, index) => {
-            const qEl = document.createElement("div");
-            qEl.className = "question-block";
+        questions.forEach((q: any, i: number) => {
+            const div = document.createElement("div");
+            div.className = "question-block";
 
             let inputHtml = "";
             if (q.type === "multiple_choice") {
-                // Sort options
-                q.question_options?.sort(
-                    (a, b) => (a.order_no || 0) - (b.order_no || 0),
+                const opts = (q.question_options || []).sort(
+                    (a: any, b: any) => (a.order_no || 0) - (b.order_no || 0)
                 );
-
-                q.question_options?.forEach((opt) => {
+                opts.forEach((o: any) => {
                     inputHtml += `
                         <label class="option-label">
-                            <input type="radio" name="q_${q.id}" value="${opt.id}" required>
-                            <span>${opt.option_text}</span>
-                        </label>
-                     `;
+                            <input type="radio" name="q_${q.id}" value="${o.id}" required />
+                            <span>${o.option_text}</span>
+                        </label>`;
                 });
             } else if (q.type === "essay") {
                 inputHtml = `
-                    <textarea name="q_${q.id}" class="essay-input" rows="5" placeholder="Type your answer here..."></textarea>
-                `;
+                    <textarea name="q_${q.id}" class="essay-input" rows="6"
+                        placeholder="Tulis jawaban kamu di sini..."></textarea>
+                    <p class="hint-text">✍️ Soal essay akan dikoreksi manual oleh guru.</p>`;
             } else if (q.type === "true_false") {
-                // Implement if needed, similar to MCQ
                 inputHtml = `
-                    <label class="option-label"><input type="radio" name="q_${q.id}" value="true"> True</label>
-                    <label class="option-label"><input type="radio" name="q_${q.id}" value="false"> False</label>
-                `;
+                    <label class="option-label">
+                        <input type="radio" name="q_${q.id}" value="true" required />
+                        <span>Benar</span>
+                    </label>
+                    <label class="option-label">
+                        <input type="radio" name="q_${q.id}" value="false" />
+                        <span>Salah</span>
+                    </label>`;
             }
 
-            qEl.innerHTML = `
+            div.innerHTML = `
                 <div class="q-header">
-                    <span class="q-num">${index + 1}.</span>
+                    <span class="q-num">${i + 1}.</span>
                     <span class="q-text">${q.question}</span>
-                    <span class="q-pts">(${q.points} pts)</span>
+                    <span class="q-pts">(${q.points || 10} poin)</span>
                 </div>
-                <div class="q-body">
-                    ${inputHtml}
-                </div>
-            `;
-            container.appendChild(qEl);
+                <div class="q-body">${inputHtml}</div>`;
+            container.appendChild(div);
         });
 
-        document.getElementById("loading").classList.add("hidden");
-        document.getElementById("exam-form").classList.remove("hidden");
+        document.getElementById("loading")!.classList.add("hidden");
+        document.getElementById("exam-form")!.classList.remove("hidden");
     }
 
     function startTimer() {
-        // Simple timer based on start time + duration
-        const timerEl = document.getElementById("timer");
-        const endTime = new Date(
-            examStartTime.getTime() + examDuration * 60000,
-        );
+        if (!examStartTime) return;
+        const timerEl = document.getElementById("timer")!;
+        const endTime = new Date(examStartTime.getTime() + examDuration * 60000);
 
         const update = () => {
-            const now = new Date();
-            const diff = endTime - now;
-
+            const diff = endTime.getTime() - Date.now();
             if (diff <= 0) {
-                // Time's up!
                 timerEl.textContent = "00:00";
                 clearInterval(interval);
-                alert("Time is up! Submitting exam...");
+                alert("Waktu habis! Jawaban akan dikumpulkan otomatis.");
                 submitExam();
                 return;
             }
-
-            const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-            const s = Math.floor((diff % (1000 * 60)) / 1000);
-
-            timerEl.textContent = `${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
+            const m = Math.floor((diff % 3600000) / 60000);
+            const s = Math.floor((diff % 60000) / 1000);
+            timerEl.textContent = `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
         };
-
         const interval = setInterval(update, 1000);
         update();
     }
 
-    function showError(msg) {
-        const el = document.getElementById("error-msg");
-        el.textContent = msg;
-        el.classList.remove("hidden");
-        document.getElementById("loading").style.display = "none";
-    }
-
-    function showResult(sub) {
-        document.getElementById("loading").classList.add("hidden");
-        document.getElementById("exam-form").classList.add("hidden");
-        document.getElementById("result-view").classList.remove("hidden");
-        document.getElementById("timer").style.display = "none";
-
-        if (sub.status === "graded" || sub.score !== null) {
-            const scoreDisplay = document.getElementById("score-display");
-            document.getElementById("final-score").textContent = sub.score;
-            scoreDisplay.classList.remove("hidden");
-        }
-    }
-
     async function submitExam() {
-        const form = document.getElementById("exam-form");
+        const form = document.getElementById("exam-form") as HTMLFormElement;
         const formData = new FormData(form);
-        const answers = [];
-
-        // Cek apakah user masih login
-        const userEl = document.getElementById("user-data");
-        const userData = userEl ? userEl.dataset.user : null;
-        if (!userData || userData === "null") {
-            alert("Sesi telah berakhir. Silakan login kembali.");
-            window.location.href = "/login";
-            return;
-        }
-
-        // 1. Collect Answers
-        // We need to iterate over QUESTIONS to know what to look for?
-        // Or just iterate form keys.
-        // Form keys are like "q_{questionId}".
+        const answers: any[] = [];
 
         for (const [key, value] of formData.entries()) {
-            if (key.startsWith("q_")) {
-                const questionId = key.substring(2);
-                let answerPayload = {
-                    submission_id: submissionId,
-                    question_id: questionId,
-                };
+            if (!key.startsWith("q_")) continue;
+            const questionId = key.substring(2);
+            const payload: any = {
+                submission_id: submissionId,
+                question_id: questionId,
+            };
 
-                // Determine if value is option ID (UUID) or text
-                // Regex check for UUID? Or based on DOM question type?
-                // Simplest: Check if value looks like UUID (MCQ option) or not.
-                const isUUID =
-                    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-                        value,
-                    );
-
-                if (isUUID) {
-                    answerPayload.selected_option_id = value;
-                } else {
-                    answerPayload.answer_text = value;
-                }
-
-                answers.push(answerPayload);
+            const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value as string);
+            if (isUUID) {
+                payload.selected_option_id = value;
+            } else {
+                payload.answer_text = value;
             }
+            answers.push(payload);
         }
 
-        // 2. Insert Answers
+        // Insert answers
         const { error: ansError } = await supabase
             .from("submission_answers")
             .insert(answers);
 
         if (ansError) {
             console.error(ansError);
-            alert("Gagal mengirim jawaban. Silakan coba lagi.");
+            alert("Gagal mengirim jawaban. Coba lagi.");
             return;
         }
 
-        // 3. Auto-Grade MCQs (Optional implementation here or via Database Function / Edge Function)
-        // For MVP, we'll mark as submitted.
-        // Ideally we fetch correct options and calculate score here or serverside.
-        // Let's do a quick calculation on client for immediate feedback if safe?
-        // No, we didn't fetch correct answers. Secure way: DB trigger or server function.
-        // We will just mark submitted.
+        // Auto-grade MCQ & TF
+        await autoGrade(answers);
 
+        // Update submission
         await supabase
             .from("exam_submissions")
             .update({
@@ -362,12 +327,146 @@ if (!user) {
             })
             .eq("id", submissionId);
 
-        showResult({ status: "submitted", score: "Pending" });
+        showSubmittedView();
     }
 
-    document.getElementById("exam-form").onsubmit = async (e) => {
+    async function autoGrade(answers: any[]) {
+        // Fetch correct answers for MCQ and TF
+        const { data: questions } = await supabase
+            .from("questions")
+            .select("*, question_options(id, option_text, is_correct)")
+            .eq("exam_id", examId);
+
+        if (!questions) return;
+
+        for (const ans of answers) {
+            const q = questions.find((q: any) => q.id === ans.question_id);
+            if (!q) continue;
+
+            let isCorrect = false;
+            let pointsAwarded = 0;
+
+            if (q.type === "multiple_choice" && ans.selected_option_id) {
+                const correctOpt = q.question_options?.find((o: any) => o.is_correct);
+                if (correctOpt && ans.selected_option_id === correctOpt.id) {
+                    isCorrect = true;
+                    pointsAwarded = q.points || 10;
+                }
+            } else if (q.type === "true_false" && ans.answer_text) {
+                if (ans.answer_text === q.correct_answer) {
+                    isCorrect = true;
+                    pointsAwarded = q.points || 10;
+                }
+            } else {
+                // Essay - skip auto grading
+                continue;
+            }
+
+            // Update answer with auto-grade result
+            await supabase
+                .from("submission_answers")
+                .update({
+                    is_correct: isCorrect,
+                    points_awarded: pointsAwarded,
+                })
+                .eq("submission_id", submissionId)
+                .eq("question_id", ans.question_id);
+        }
+    }
+
+    function showSubmittedView() {
+        document.getElementById("loading")!.classList.add("hidden");
+        document.getElementById("exam-form")!.classList.add("hidden");
+        document.getElementById("timer")!.style.display = "none";
+        document.getElementById("submitted-view")!.classList.remove("hidden");
+    }
+
+    async function showGradedResult(sub: any) {
+        document.getElementById("loading")!.classList.add("hidden");
+        document.getElementById("timer")!.style.display = "none";
+        document.getElementById("graded-view")!.classList.remove("hidden");
+
+        const score = sub.score || 0;
+        document.getElementById("final-score")!.textContent = `${score}`;
+
+        const passEl = document.getElementById("pass-status")!;
+        if (score >= examPassingScore) {
+            passEl.textContent = `✅ LULUS (Passing: ${examPassingScore}%)`;
+            passEl.className = "pass-badge passed";
+        } else {
+            passEl.textContent = `❌ Belum Lulus (Passing: ${examPassingScore}%)`;
+            passEl.className = "pass-badge failed";
+        }
+
+        // Load questions + answers for detail view
+        const { data: questions } = await supabase
+            .from("questions")
+            .select("*, question_options(id, option_text, is_correct)")
+            .eq("exam_id", examId)
+            .order("order_no", { ascending: true });
+
+        const { data: answers } = await supabase
+            .from("submission_answers")
+            .select("*")
+            .eq("submission_id", sub.id);
+
+        if (!questions || !answers) return;
+
+        const detailsEl = document.getElementById("graded-details")!;
+        detailsEl.innerHTML = (questions as any[]).map((q: any, i: number) => {
+            const ans = (answers as any[]).find((a: any) => a.question_id === q.id);
+            const type = q.type;
+            const pts = q.points || 10;
+            const awarded = ans?.points_awarded ?? 0;
+            const feedback = ans?.feedback || "";
+            const correct = ans?.is_correct;
+
+            let yourAnswer = "";
+            let correctAnswer = "";
+
+            if (type === "multiple_choice") {
+                const selected = q.question_options?.find((o: any) => o.id === ans?.selected_option_id);
+                const correctOpt = q.question_options?.find((o: any) => o.is_correct);
+                yourAnswer = selected?.option_text || "(Tidak dijawab)";
+                correctAnswer = correctOpt?.option_text || "-";
+            } else if (type === "true_false") {
+                yourAnswer = ans?.answer_text === "true" ? "Benar" : ans?.answer_text === "false" ? "Salah" : "(Tidak dijawab)";
+                correctAnswer = q.correct_answer === "true" ? "Benar" : "Salah";
+            } else {
+                yourAnswer = ans?.answer_text || "(Tidak dijawab)";
+                correctAnswer = "(Dikoreksi manual)";
+            }
+
+            const statusIcon = correct === true ? "✅" : correct === false ? "❌" : "📝";
+
+            return `
+                <div class="detail-card ${correct ? "correct" : correct === false ? "wrong" : "manual"}">
+                    <div class="detail-header">
+                        <span class="detail-num">${i + 1}</span>
+                        <span class="detail-type">${type === "essay" ? "✍️ Essay" : type === "multiple_choice" ? "📋 PG" : "✅ B/S"}</span>
+                        <span class="detail-score">${statusIcon} ${awarded}/${pts}</span>
+                    </div>
+                    <div class="detail-question">${q.question}</div>
+                    <div class="detail-answers">
+                        <div class="your-answer"><strong>Jawabanmu:</strong> ${yourAnswer}</div>
+                        ${type !== "essay" ? `<div class="correct-answer"><strong>Jawaban Benar:</strong> ${correctAnswer}</div>` : ""}
+                    </div>
+                    ${feedback ? `<div class="detail-feedback">💬 <strong>Feedback Guru:</strong> ${feedback}</div>` : ""}
+                </div>
+            `;
+        }).join("");
+    }
+
+    function showError(msg: string) {
+        const el = document.getElementById("error-msg")!;
+        el.textContent = msg;
+        el.classList.remove("hidden");
+        document.getElementById("loading")!.classList.add("hidden");
+    }
+
+    document.getElementById("exam-form")!.onsubmit = async (e) => {
         e.preventDefault();
-        if (confirm("Are you sure you want to submit?")) {
+        if (confirm("Yakin ingin mengumpulkan jawaban? Pastikan semua soal sudah dijawab.")) {
             await submitExam();
         }
     };
@@ -376,94 +475,62 @@ if (!user) {
 </script>
 
 <style>
-    .exam-container {
-        max-width: 800px;
-        margin: 0 auto;
-        padding: 2rem;
-    }
-    .exam-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        border-bottom: 2px solid #f3f4f6;
-        padding-bottom: 1rem;
-        margin-bottom: 2rem;
-    }
-    .timer {
-        font-size: 1.5rem;
-        font-family: monospace;
-        background: #fef3c7;
-        color: #d97706;
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-        font-weight: 700;
-    }
-    .question-block {
-        background: white;
-        padding: 1.5rem;
-        border-radius: 8px;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
-        margin-bottom: 2rem;
-        border: 1px solid #e5e7eb;
-    }
-    .q-header {
-        font-weight: 600;
-        font-size: 1.1rem;
-        margin-bottom: 1rem;
-        display: flex;
-        gap: 0.5rem;
-    }
-    .q-text {
-        flex: 1;
-    }
-    .q-pts {
-        color: #9ca3af;
-        font-size: 0.9rem;
-        font-weight: normal;
-    }
-    .option-label {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        padding: 0.75rem;
-        border: 1px solid #e5e7eb;
-        border-radius: 6px;
-        margin-bottom: 0.5rem;
-        cursor: pointer;
-        transition: background 0.1s;
-    }
-    .option-label:hover {
-        background: #f9fafb;
-    }
-    input[type="radio"] {
-        width: 1.2rem;
-        height: 1.2rem;
-    }
-    .essay-input {
-        width: 100%;
-        padding: 1rem;
-        border: 1px solid #d1d5db;
-        border-radius: 6px;
-        font-family: inherit;
-    }
-    .result-container {
-        text-align: center;
-        padding: 3rem;
-        background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-    }
-    .score-card {
-        margin: 2rem 0;
-        font-size: 2rem;
-        font-weight: 800;
-        color: #10b981;
-    }
-    .error-message {
-        color: #ef4444;
-        background: #fee2e2;
-        padding: 1rem;
-        border-radius: 6px;
-        margin-bottom: 1rem;
-    }
+    .exam-container { max-width: 800px; margin: 0 auto; padding: 2rem; }
+    .exam-header { display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #f3f4f6; padding-bottom: 1rem; margin-bottom: 2rem; }
+    .exam-header h1 { margin: 0; font-size: 1.5rem; }
+    .muted { color: #6b7280; margin: 0.25rem 0 0 0; font-size: 0.9rem; }
+    .timer { font-size: 1.5rem; font-family: monospace; background: #fef3c7; color: #d97706; padding: 0.5rem 1rem; border-radius: 8px; font-weight: 700; white-space: nowrap; }
+    .state-msg { text-align: center; padding: 3rem; color: #6b7280; }
+    .hidden { display: none !important; }
+    .error-box { color: #dc2626; background: #fee2e2; padding: 1rem; border-radius: 8px; margin-bottom: 1rem; }
+
+    .question-block { background: white; padding: 1.5rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); margin-bottom: 1.5rem; border: 1px solid #e5e7eb; }
+    .q-header { font-weight: 600; font-size: 1.05rem; margin-bottom: 1rem; display: flex; gap: 0.5rem; }
+    .q-text { flex: 1; }
+    .q-pts { color: #9ca3af; font-size: 0.85rem; font-weight: normal; }
+    .option-label { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; border: 1px solid #e5e7eb; border-radius: 6px; margin-bottom: 0.5rem; cursor: pointer; transition: background 0.15s; }
+    .option-label:hover { background: #f0f9ff; border-color: #93c5fd; }
+    input[type="radio"] { width: 1.2rem; height: 1.2rem; }
+    .essay-input { width: 100%; padding: 1rem; border: 1px solid #d1d5db; border-radius: 6px; font-family: inherit; font-size: 0.95rem; box-sizing: border-box; min-height: 120px; }
+    .hint-text { font-size: 0.8rem; color: #6366f1; margin-top: 0.5rem; font-style: italic; }
+    .exam-actions { text-align: center; padding: 2rem 0; }
+
+    .btn { padding: 0.5rem 1.25rem; border-radius: 0.5rem; font-weight: 600; cursor: pointer; border: none; font-size: 0.9rem; text-decoration: none; display: inline-flex; }
+    .btn-primary { background: #2563eb; color: white; }
+    .btn-primary:hover { background: #1d4ed8; }
+    .btn-outline { background: white; border: 1px solid #d1d5db; color: #374151; }
+    .btn-lg { padding: 0.75rem 2rem; font-size: 1rem; }
+
+    /* Submitted View */
+    .result-box { text-align: center; padding: 3rem; background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+    .result-icon { font-size: 4rem; margin-bottom: 1rem; }
+    .result-box h2 { margin: 0 0 0.5rem; color: #1e293b; }
+    .result-box p { color: #64748b; }
+
+    /* Graded View */
+    .result-header { margin-bottom: 2rem; }
+    .result-header h2 { margin-bottom: 1rem; }
+    .big-score { margin: 1rem 0; }
+    .score-num { font-size: 4rem; font-weight: 900; }
+    .score-max { font-size: 1.5rem; color: #94a3b8; }
+    .pass-badge { display: inline-block; padding: 0.5rem 1.5rem; border-radius: 999px; font-weight: 700; font-size: 1rem; }
+    .pass-badge.passed { background: #dcfce7; color: #166534; }
+    .pass-badge.failed { background: #fee2e2; color: #991b1b; }
+
+    .graded-details { text-align: left; margin-top: 2rem; }
+    .detail-card { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.75rem; padding: 1.25rem; margin-bottom: 1rem; }
+    .detail-card.correct { border-left: 4px solid #10b981; }
+    .detail-card.wrong { border-left: 4px solid #ef4444; }
+    .detail-card.manual { border-left: 4px solid #6366f1; }
+    .detail-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem; }
+    .detail-num { background: #2563eb; color: white; width: 28px; height: 28px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 0.8rem; }
+    .detail-type { background: #dbeafe; color: #1e40af; padding: 0.15rem 0.5rem; border-radius: 999px; font-size: 0.7rem; font-weight: 600; }
+    .detail-score { margin-left: auto; font-weight: 700; font-size: 0.9rem; }
+    .detail-question { font-weight: 600; color: #1e293b; margin-bottom: 0.75rem; font-size: 0.95rem; }
+    .detail-answers { font-size: 0.875rem; }
+    .your-answer { margin-bottom: 0.25rem; color: #374151; }
+    .correct-answer { color: #10b981; font-weight: 500; }
+    .detail-feedback { margin-top: 0.75rem; background: #eff6ff; padding: 0.75rem; border-radius: 0.375rem; font-size: 0.85rem; color: #1e40af; }
+
+    .actions { margin-top: 2rem; }
 </style>
