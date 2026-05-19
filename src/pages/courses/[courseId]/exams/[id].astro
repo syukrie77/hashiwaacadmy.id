@@ -81,129 +81,35 @@ if (!user) {
     let examPassingScore = 60;
 
     async function init() {
-        const userEl = document.getElementById("user-data");
-        const userData = userEl?.dataset.user;
-        if (!userData || userData === "null") {
-            window.location.href = "/login";
-            return;
-        }
-        const user = JSON.parse(userData);
-
-        // Ensure user exists in users table
-        try {
-            const { data: existing } = await supabase
-                .from("users")
-                .select("id")
-                .eq("id", user.id)
-                .maybeSingle();
-
-            if (!existing) {
-                await supabase.from("users").insert({
-                    id: user.id,
-                    name: user.name || user.email || "Student",
-                    email: user.email,
-                    role: user.role || "student",
-                });
-            }
-        } catch (err) {
-            console.error(err);
-            showError("Gagal memulai ujian. Silakan hubungi support.");
-            return;
-        }
-
         // 1. Fetch exam
-        const { data: exam, error: exError } = await supabase
-            .from("exams")
-            .select("*")
-            .eq("id", examId)
-            .single();
-
-        if (exError || !exam) {
-            showError("Ujian tidak ditemukan.");
-            return;
-        }
+        const examRes = await fetch(`/api/exam/${examId}`);
+        if (!examRes.ok) { showError("Ujian tidak ditemukan."); return; }
+        const { exam } = await examRes.json();
 
         document.getElementById("exam-title")!.textContent = exam.title;
         document.getElementById("exam-desc")!.textContent = exam.description || "";
         examDuration = exam.duration || 60;
         examPassingScore = exam.passing_score || 60;
 
-        // 2. Check submission
-        const { data: sub } = await supabase
-            .from("exam_submissions")
-            .select("*")
-            .eq("user_id", user.id)
-            .eq("exam_id", examId)
-            .maybeSingle();
+        // 2. Check/create submission
+        const subRes = await fetch(`/api/exam/${examId}/submit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "start" }),
+        });
+        if (!subRes.ok) { showError("Gagal memulai ujian. Coba logout lalu login ulang."); return; }
+        const { submission: sub } = await subRes.json();
 
-        if (!sub) {
-            // Start new
-            const { data: newSub, error: createError } = await supabase
-                .from("exam_submissions")
-                .insert({
-                    exam_id: examId,
-                    user_id: user.id,
-                    status: "in_progress",
-                    started_at: new Date().toISOString(),
-                })
-                .select()
-                .single();
+        submissionId = sub.id;
+        examStartTime = new Date(sub.started_at);
 
-            if (createError) {
-                console.error(createError);
-                showError("Gagal memulai ujian. Coba logout lalu login ulang.");
-                return;
-            }
-            submissionId = newSub.id;
-            examStartTime = new Date(newSub.started_at);
-        } else {
-            submissionId = sub.id;
-            examStartTime = new Date(sub.started_at);
-
-            if (sub.status === "graded") {
-                await showGradedResult(sub);
-                return;
-            }
-            if (sub.status === "submitted") {
-                showSubmittedView();
-                return;
-            }
-        }
+        if (sub.status === "graded") { await showGradedResult(sub); return; }
+        if (sub.status === "submitted") { showSubmittedView(); return; }
 
         // 3. Load questions
-        let { data: questions, error: qError } = await supabase
-            .from("questions")
-            .select("*, question_options(id, option_text, order_no)")
-            .eq("exam_id", examId)
-            .order("order_no", { ascending: true });
-
-        // Fallback: if order_no column doesn't exist, try without ordering
-        if (qError && qError.message?.includes("order_no")) {
-            console.warn("order_no column missing, retrying without order");
-            const fallback = await supabase
-                .from("questions")
-                .select("*, question_options(id, option_text, order_no)")
-                .eq("exam_id", examId);
-            questions = fallback.data;
-            qError = fallback.error;
-        }
-
-        // Fallback: if question_options join fails, try without it
-        if (qError && qError.message?.includes("question_options")) {
-            console.warn("question_options join failed, retrying without join");
-            const fallback2 = await supabase
-                .from("questions")
-                .select("*")
-                .eq("exam_id", examId);
-            questions = fallback2.data;
-            qError = fallback2.error;
-        }
-
-        if (qError) {
-            console.error("Failed to load questions:", qError);
-            showError("Gagal memuat soal. Error: " + (qError.message || "Unknown error. Pastikan RLS tabel questions & question_options sudah di-fix."));
-            return;
-        }
+        const qRes = await fetch(`/api/exam/${examId}/questions`);
+        if (!qRes.ok) { showError("Gagal memuat soal."); return; }
+        const { questions } = await qRes.json();
 
         renderQuestions(questions || []);
         startTimer();
@@ -290,88 +196,21 @@ if (!user) {
         for (const [key, value] of formData.entries()) {
             if (!key.startsWith("q_")) continue;
             const questionId = key.substring(2);
-            const payload: any = {
-                submission_id: submissionId,
-                question_id: questionId,
-            };
-
+            const payload: any = { submission_id: submissionId, question_id: questionId };
             const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value as string);
-            if (isUUID) {
-                payload.selected_option_id = value;
-            } else {
-                payload.answer_text = value;
-            }
+            if (isUUID) payload.selected_option_id = value;
+            else payload.answer_text = value;
             answers.push(payload);
         }
 
-        // Insert answers
-        const { error: ansError } = await supabase
-            .from("submission_answers")
-            .insert(answers);
-
-        if (ansError) {
-            console.error(ansError);
-            alert("Gagal mengirim jawaban. Coba lagi.");
-            return;
-        }
-
-        // Auto-grade MCQ & TF
-        await autoGrade(answers);
-
-        // Update submission
-        await supabase
-            .from("exam_submissions")
-            .update({
-                status: "submitted",
-                submitted_at: new Date().toISOString(),
-            })
-            .eq("id", submissionId);
+        const res = await fetch(`/api/exam/${examId}/submit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ action: "submit", submissionId, answers }),
+        });
+        if (!res.ok) { alert("Gagal mengirim jawaban. Coba lagi."); return; }
 
         showSubmittedView();
-    }
-
-    async function autoGrade(answers: any[]) {
-        // Fetch correct answers for MCQ and TF
-        const { data: questions } = await supabase
-            .from("questions")
-            .select("*, question_options(id, option_text, is_correct)")
-            .eq("exam_id", examId);
-
-        if (!questions) return;
-
-        for (const ans of answers) {
-            const q = questions.find((q: any) => q.id === ans.question_id);
-            if (!q) continue;
-
-            let isCorrect = false;
-            let pointsAwarded = 0;
-
-            if (q.type === "multiple_choice" && ans.selected_option_id) {
-                const correctOpt = q.question_options?.find((o: any) => o.is_correct);
-                if (correctOpt && ans.selected_option_id === correctOpt.id) {
-                    isCorrect = true;
-                    pointsAwarded = q.points || 10;
-                }
-            } else if (q.type === "true_false" && ans.answer_text) {
-                if (ans.answer_text === q.correct_answer) {
-                    isCorrect = true;
-                    pointsAwarded = q.points || 10;
-                }
-            } else {
-                // Essay - skip auto grading
-                continue;
-            }
-
-            // Update answer with auto-grade result
-            await supabase
-                .from("submission_answers")
-                .update({
-                    is_correct: isCorrect,
-                    points_awarded: pointsAwarded,
-                })
-                .eq("submission_id", submissionId)
-                .eq("question_id", ans.question_id);
-        }
     }
 
     function showSubmittedView() {
@@ -399,17 +238,13 @@ if (!user) {
         }
 
         // Load questions + answers for detail view
-        const { data: questions } = await supabase
-            .from("questions")
-            .select("*, question_options(id, option_text, is_correct)")
-            .eq("exam_id", examId)
-            .order("order_no", { ascending: true });
-
-        const { data: answers } = await supabase
-            .from("submission_answers")
-            .select("*")
-            .eq("submission_id", sub.id);
-
+        const [qRes, aRes] = await Promise.all([
+            fetch(`/api/exam/${examId}/questions`),
+            fetch(`/api/grading/${sub.id}`),
+        ]);
+        if (!qRes.ok || !aRes.ok) return;
+        const { questions } = await qRes.json();
+        const { answers } = await aRes.json();
         if (!questions || !answers) return;
 
         const detailsEl = document.getElementById("graded-details")!;

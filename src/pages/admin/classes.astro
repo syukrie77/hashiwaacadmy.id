@@ -117,8 +117,6 @@ const instructors = (instructorData as any[]) || [];
 </AdminLayout>
 
 <script>
-    import { supabase } from "../../lib/supabase";
-
     // Instructor select change handlers
     document.querySelectorAll(".instructor-select").forEach((select) => {
         select.addEventListener("change", (e) => {
@@ -154,27 +152,18 @@ const instructors = (instructorData as any[]) || [];
             target.textContent = "Menyimpan...";
 
             try {
-                const { data: updateData, error } = await (supabase as any)
-                    .from("classes")
-                    .update({ owner_id: newOwnerId })
-                    .eq("id", courseId)
-                    .select();
-
-                if (error) throw error;
-
-                if (!updateData || updateData.length === 0) {
-                    throw new Error(
-                        "Update gagal (0 data diubah). Pastikan RLS dikonfigurasi dengan benar.",
-                    );
-                }
+                const res = await fetch(`/api/courses/${courseId}`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ owner_id: newOwnerId }),
+                });
+                const result = await res.json();
+                if (!res.ok) throw new Error(result.error || "Gagal update");
 
                 instSelect.dataset.currentOwner = newOwnerId || "";
                 target.textContent = "Assigned ✓";
                 target.classList.remove("changed");
-
-                setTimeout(() => {
-                    target.textContent = "Assign";
-                }, 2000);
+                setTimeout(() => { target.textContent = "Assign"; }, 2000);
             } catch (err: any) {
                 console.error(err);
                 alert("Gagal assign instructor: " + err.message);
@@ -191,13 +180,14 @@ const instructors = (instructorData as any[]) || [];
             const id = target.dataset.id;
             const currentActive = target.dataset.active === "true";
 
-            const { error: updateError } = await (supabase as any)
-                .from("classes")
-                .update({ is_active: !currentActive })
-                .eq("id", id);
-
-            if (!updateError) window.location.reload();
-            else alert("Update gagal: " + updateError.message);
+            const res = await fetch(`/api/courses/${id}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ is_active: !currentActive }),
+            });
+            const result = await res.json();
+            if (res.ok) window.location.reload();
+            else alert("Update gagal: " + result.error);
         });
     });
 
@@ -206,17 +196,11 @@ const instructors = (instructorData as any[]) || [];
         btn.addEventListener("click", async (e) => {
             const target = e.currentTarget as HTMLButtonElement;
             const id = target.dataset.id;
-            if (
-                confirm(
-                    "Yakin ingin menghapus course ini? Semua modul dan materi juga akan dihapus.",
-                )
-            ) {
-                const { error } = await (supabase as any)
-                    .from("classes")
-                    .delete()
-                    .eq("id", id);
-                if (error) alert(error.message);
-                else window.location.reload();
+            if (confirm("Yakin ingin menghapus course ini? Semua modul dan materi juga akan dihapus.")) {
+                const res = await fetch(`/api/courses/${id}`, { method: "DELETE" });
+                const result = await res.json();
+                if (res.ok) window.location.reload();
+                else alert(result.error);
             }
         });
     });

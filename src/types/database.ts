@@ -132,6 +132,7 @@ export interface Database {
                     type: string
                     content: string | null
                     duration: number | null
+                    order_no: number | null
                 }
                 Insert: {
                     id?: string
@@ -140,6 +141,7 @@ export interface Database {
                     type: string
                     content?: string | null
                     duration?: number | null
+                    order_no?: number | null
                 }
                 Update: {
                     id?: string
@@ -148,6 +150,7 @@ export interface Database {
                     type?: string
                     content?: string | null
                     duration?: number | null
+                    order_no?: number | null
                 }
             }
             progress: {

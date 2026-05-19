@@ -165,68 +165,31 @@ if (!user || (user.role !== "instructor" && user.role !== "admin")) {
     const editExamModal = document.getElementById("edit-exam-modal");
 
     async function init() {
-        // Fetch exam info
-        const { data: exam } = await supabase
-            .from("exams")
-            .select("*")
-            .eq("id", examId)
-            .single();
-
-        if (exam) {
+        const examRes = await fetch(`/api/exam/${examId}`);
+        if (examRes.ok) {
+            const { exam } = await examRes.json();
             document.getElementById("exam-title")!.textContent = exam.title;
             document.getElementById("exam-meta")!.textContent =
                 `${exam.description || "Tidak ada deskripsi"} | Durasi: ${exam.duration || 60} menit | Passing: ${exam.passing_score || 60}%`;
-
             (document.getElementById("edit-title") as HTMLInputElement).value = exam.title;
             (document.getElementById("edit-desc") as HTMLTextAreaElement).value = exam.description || "";
             (document.getElementById("edit-duration") as HTMLInputElement).value = String(exam.duration || 60);
             (document.getElementById("edit-passing") as HTMLInputElement).value = String(exam.passing_score || 60);
-
             if (exam.is_published) {
                 document.getElementById("publish-btn")!.textContent = "✅ Published";
                 (document.getElementById("publish-btn") as HTMLButtonElement).disabled = true;
             }
         }
-
         await loadQuestions();
     }
 
     async function loadQuestions() {
-        let { data, error } = await supabase
-            .from("questions")
-            .select("*, question_options(*)")
-            .eq("exam_id", examId)
-            .order("order_no", { ascending: true });
-
-        // Fallback 1: if order_no column doesn't exist, retry without ordering
-        if (error && error.message?.includes("order_no")) {
-            console.warn("order_no column missing, retrying without order");
-            const fb1 = await supabase
-                .from("questions")
-                .select("*, question_options(*)")
-                .eq("exam_id", examId);
-            data = fb1.data;
-            error = fb1.error;
-        }
-
-        // Fallback 2: if question_options join fails, retry without it
-        if (error && error.message?.includes("question_options")) {
-            console.warn("question_options join failed, retrying without join");
-            const fb2 = await supabase
-                .from("questions")
-                .select("*")
-                .eq("exam_id", examId);
-            data = fb2.data;
-            error = fb2.error;
-        }
-
-        // Fallback 3: if RLS blocks, show helpful message
-        if (error) {
-            console.error("Questions load error:", error);
-            loadingEl!.textContent = "Gagal memuat soal. Error: " + (error.message || "Unknown. Pastikan: 1) Jalankan fix_exam_rls_for_students.sql, 2) Jalankan fix_exam_publish_status.sql, 3) Tabel questions & question_options sudah ada.");
+        const res = await fetch(`/api/exam/${examId}/questions`);
+        if (!res.ok) {
+            loadingEl!.textContent = "Gagal memuat soal.";
             return;
         }
-
+        const { questions: data } = await res.json();
         questions = data || [];
         loadingEl!.classList.add("hidden");
         contentEl!.classList.remove("hidden");
@@ -286,9 +249,7 @@ if (!user || (user.role !== "instructor" && user.role !== "admin")) {
             (btn as HTMLButtonElement).onclick = async () => {
                 if (confirm("Hapus soal ini?")) {
                     const qId = (btn as HTMLElement).dataset.id;
-                    // Delete options first
-                    await supabase.from("question_options").delete().eq("question_id", qId);
-                    await supabase.from("questions").delete().eq("id", qId);
+                    await fetch(`/api/exam/questions/${qId}`, { method: "DELETE" });
                     await loadQuestions();
                 }
             };
@@ -406,46 +367,24 @@ if (!user || (user.role !== "instructor" && user.role !== "admin")) {
             correct_answer: correctAnswer,
         };
 
-        let questionId: string;
-
-        if (editingId) {
-            // Update existing
-            await supabase.from("question_options").delete().eq("question_id", editingId);
-            await supabase.from("questions").update(qData).eq("id", editingId);
-            questionId = editingId;
-        } else {
-            // Create new
-            const { data, error } = await supabase
-                .from("questions")
-                .insert(qData)
-                .select("id")
-                .single();
-
-            if (error) {
-                alert("Gagal menyimpan soal: " + error.message);
-                return;
-            }
-            questionId = data.id;
-        }
-
-        // Save MCQ options
+        let options: any[] = [];
         if (type === "multiple_choice") {
             const correctIdx = parseInt((document.querySelector('input[name="correct_option"]:checked') as HTMLInputElement)?.value || "0");
             const optionInputs = document.querySelectorAll(".option-input") as NodeListOf<HTMLInputElement>;
-
-            const options = Array.from(optionInputs).map((input, i) => ({
-                question_id: questionId,
+            options = Array.from(optionInputs).map((input, i) => ({
                 option_text: input.value,
                 is_correct: i === correctIdx,
                 order_no: i + 1,
             }));
-
-            const { error: optError } = await supabase.from("question_options").insert(options);
-            if (optError) {
-                alert("Gagal menyimpan pilihan: " + optError.message);
-                return;
-            }
         }
+
+        const res = await fetch(`/api/exam/${examId}/questions`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ editingId, qData, options }),
+        });
+        const result = await res.json();
+        if (!res.ok) { alert("Gagal menyimpan soal: " + (result.error || "Unknown error")); return; }
 
         qModal!.classList.add("hidden");
         await loadQuestions();
@@ -453,12 +392,13 @@ if (!user || (user.role !== "instructor" && user.role !== "admin")) {
 
     // Publish exam
     document.getElementById("publish-btn")!.onclick = async () => {
-        if (questions.length === 0) {
-            alert("Tambahkan minimal 1 soal sebelum publish.");
-            return;
-        }
+        if (questions.length === 0) { alert("Tambahkan minimal 1 soal sebelum publish."); return; }
         if (confirm("Publish ujian ini? Siswa akan bisa mengerjakannya.")) {
-            await supabase.from("exams").update({ is_published: true }).eq("id", examId);
+            await fetch(`/api/exam/${examId}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ is_published: true }),
+            });
             location.reload();
         }
     };
@@ -473,12 +413,11 @@ if (!user || (user.role !== "instructor" && user.role !== "admin")) {
         const description = (document.getElementById("edit-desc") as HTMLTextAreaElement).value;
         const duration = parseInt((document.getElementById("edit-duration") as HTMLInputElement).value);
         const passing_score = parseInt((document.getElementById("edit-passing") as HTMLInputElement).value);
-
-        await supabase
-            .from("exams")
-            .update({ title, description: description || null, duration, passing_score })
-            .eq("id", examId);
-
+        await fetch(`/api/exam/${examId}`, {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, description: description || null, duration, passing_score }),
+        });
         editExamModal!.classList.add("hidden");
         location.reload();
     };

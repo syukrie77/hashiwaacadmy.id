@@ -60,10 +60,46 @@ const { data: courseExams } = await supabase
 
 // Prepare modules list
 const courseModules = sortedCourseModules || [];
+
+// Fetch user-specific data server-side (avoids client-side Supabase calls that may fail)
+let isCourseEnrolledSSR = false;
+let completedMaterialIds: string[] = [];
+let purchasedModuleIdList: string[] = [];
+
+if (user) {
+    const [enrollResult, progressResult, modEnrollResult] = await Promise.all([
+        supabase
+            .from("enrollments")
+            .select("id")
+            .eq("user_id", user.id)
+            .eq("class_id", id)
+            .maybeSingle(),
+        supabase
+            .from("progress")
+            .select("material_id")
+            .eq("user_id", user.id)
+            .eq("completed", true),
+        supabase
+            .from("module_enrollments")
+            .select("module_id")
+            .eq("user_id", user.id),
+    ]);
+
+    isCourseEnrolledSSR = !!enrollResult.data;
+    completedMaterialIds = (progressResult.data || []).map((p: any) => p.material_id);
+    purchasedModuleIdList = (modEnrollResult.data || []).map((e: any) => e.module_id);
+}
 ---
 
 <Layout>
-    <div id="user-data" data-user={JSON.stringify(user || null)} class="hidden"></div>
+    <div
+        id="user-data"
+        data-user={JSON.stringify(user || null)}
+        data-enrolled={isCourseEnrolledSSR ? "true" : "false"}
+        data-completed-ids={JSON.stringify(completedMaterialIds)}
+        data-purchased-module-ids={JSON.stringify(purchasedModuleIdList)}
+        class="hidden"
+    ></div>
     <div class="course-header">
         <h1>{course.title}</h1>
         <p class="description">{course.description}</p>
@@ -285,8 +321,6 @@ const courseModules = sortedCourseModules || [];
 </div>
 
 <script>
-    import { supabase } from "../../lib/supabase";
-
     async function init() {
         const enrollBtn = document.getElementById(
             "enroll-btn",
@@ -302,7 +336,6 @@ const courseModules = sortedCourseModules || [];
 
         let targetModId = "";
         let targetType = "module"; // "module" or "course"
-        let targetPrice = 0;
 
         const courseId = enrollBtn?.dataset.courseId;
         const coursePrice = parseFloat(enrollBtn?.dataset.coursePrice || "0");
@@ -322,7 +355,6 @@ const courseModules = sortedCourseModules || [];
         ) => {
             if (!modal || !modalTitle || !modalPrice) return;
             targetModId = id;
-            targetPrice = price;
             targetType = type;
             modalTitle.textContent = title;
             modalPrice.textContent = `Rp ${price.toLocaleString("id-ID")}`;
@@ -374,43 +406,14 @@ const courseModules = sortedCourseModules || [];
             };
         }
 
-        // --- 2. FETCH USER DATA & UPDATING ENROLL BUTTON ---
-        const completedIds = new Set();
-        const purchasedModuleIds = new Set();
-        let isCourseEnrolled = false;
-
-        if (user) {
-            // A. Check Course Enrollment
-            const { data: enrollment } = await supabase
-                .from("enrollments")
-                .select("id")
-                .eq("user_id", user.id)
-                .eq("class_id", courseId)
-                .maybeSingle();
-
-            if (enrollment) isCourseEnrolled = true;
-
-            // B. Get Completed Materials
-            const { data: progress } = await supabase
-                .from("progress")
-                .select("material_id")
-                .eq("user_id", user.id)
-                .eq("completed", true);
-
-            (progress || []).forEach((p: any) =>
-                completedIds.add(p.material_id),
-            );
-
-            // C. Get Module Enrollments
-            const { data: modEnrollments } = await supabase
-                .from("module_enrollments")
-                .select("module_id")
-                .eq("user_id", user.id);
-
-            (modEnrollments || []).forEach((e: any) =>
-                purchasedModuleIds.add(e.module_id),
-            );
-        }
+        // --- 2. READ USER DATA FROM SERVER-SIDE INJECTED HTML ---
+        const isCourseEnrolled = userEl?.dataset.enrolled === "true";
+        const completedIds = new Set<string>(
+            JSON.parse(userEl?.dataset.completedIds || "[]")
+        );
+        const purchasedModuleIds = new Set<string>(
+            JSON.parse(userEl?.dataset.purchasedModuleIds || "[]")
+        );
 
         // --- 3. HANDLE ENROLL/START BUTTON LOGIC ---
         if (enrollBtn) {
@@ -446,21 +449,20 @@ const courseModules = sortedCourseModules || [];
                         // Auto-enroll for free courses
                         enrollBtn.disabled = true;
                         enrollBtn.textContent = "Mendaftarkan...";
-                        const { error } = await (supabase as any)
-                            .from("enrollments")
-                            .insert([
-                                {
-                                    user_id: user.id,
-                                    class_id: courseId,
-                                    status: "active",
-                                },
-                            ]);
-                        if (error) {
-                            alert(error.message);
+                        try {
+                            const res = await fetch(`/api/courses/${courseId}/enroll`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                            });
+                            const data = await res.json();
+                            if (!res.ok) {
+                                throw new Error(data.error || "Gagal mendaftar");
+                            }
+                            window.location.reload();
+                        } catch (e: any) {
+                            alert("Gagal mendaftar: " + e.message);
                             enrollBtn.disabled = false;
                             enrollBtn.textContent = "Daftar Gratis";
-                        } else {
-                            window.location.reload();
                         }
                     }
                 };

@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh -o StrictHostKeyChecking=no ubuntu@hashiwaacademy.id \"find ~/ -name 'docker-compose.app.yml' 2>/dev/null\")",
+      "Bash(ssh -o StrictHostKeyChecking=no ubuntu@hashiwaacademy.id 'docker inspect hashiwa-app --format='\\\\''{{json .HostConfig.Binds}} {{.HostConfig.NetworkMode}} {{range $k,$v := .NetworkSettings.Networks}}{{$k}}{{end}}'\\\\''')"
+    ]
+  }
+}

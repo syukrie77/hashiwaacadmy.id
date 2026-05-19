@@ -263,58 +263,23 @@ if (!user || user.role !== "instructor") {
     }
 
     async function checkOwnership() {
-        const { data: course, error } = await supabase
-            .from("classes")
-            .select("*")
-            .eq("id", courseId)
-            .single();
-
-        if (error || !course) {
-            document.getElementById("loading")!.style.display = "none";
-            document
-                .getElementById("access-denied")!
-                .classList.remove("hidden");
-            return null;
+        const res = await fetch(`/api/courses/${courseId}/data`);
+        if (res.status === 403) {
+            // 403 = access denied (not owner)
+            return { notFound: false, course: null };
         }
-
-        // Check if user is the owner
-        if (course.owner_id !== user?.id) {
-            document.getElementById("loading")!.style.display = "none";
-            document
-                .getElementById("access-denied")!
-                .classList.remove("hidden");
-            return null;
+        if (!res.ok) {
+            // 404 or other error = not found yet
+            return { notFound: true, course: null };
         }
-
-        return course;
+        const data = await res.json();
+        return { notFound: false, course: data.course };
     }
 
     async function fetchData() {
-        const { data: course } = await (supabase as any)
-            .from("classes")
-            .select("*")
-            .eq("id", courseId)
-            .single();
-        const { data: modules } = await (supabase as any)
-            .from("modules")
-            .select("*")
-            .eq("class_id", courseId)
-            .order("order_no");
-        const { data: materials } = await (supabase as any)
-            .from("materials")
-            .select("*, modules!inner(class_id)")
-            .eq("modules.class_id", courseId)
-            .order("order_no");
-        const { data: assignments } = await (supabase as any)
-            .from("assignments")
-            .select("*")
-            .eq("class_id", courseId);
-        const { data: exams } = await (supabase as any)
-            .from("exams")
-            .select("*")
-            .eq("class_id", courseId);
-
-        return { course, modules, materials, assignments, exams };
+        const res = await fetch(`/api/courses/${courseId}/data`);
+        if (!res.ok) return { course: null, modules: null, materials: null, assignments: null, exams: null };
+        return await res.json();
     }
 
     function renderBuilder(data: any) {
@@ -649,13 +614,18 @@ if (!user || user.role !== "instructor") {
             const values = getV();
             if (!values.id) delete values.id;
 
-            const { error } = await (supabase as any)
-                .from(table)
-                .upsert(values);
-            if (!error) {
+            const res = await fetch(`/api/builder/${table}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(values),
+            });
+            if (res.ok) {
                 closeM();
                 f.reset();
                 refresh();
+            } else {
+                const result = await res.json();
+                alert("Gagal menyimpan: " + (result.error || "Unknown error"));
             }
         };
     };
@@ -760,83 +730,38 @@ if (!user || user.role !== "instructor") {
         try {
             if (type !== "text" && fileInput.files?.length) {
                 const file = fileInput.files[0];
-                const fileName = file.name.toLowerCase();
-                const fileExt = fileName.split(".").pop() || "unknown";
+                const fileExt = file.name.toLowerCase().split(".").pop() || "unknown";
 
-                // Validate file type
-                const validVideoTypes = ["video/mp4", "video/webm", "video/ogg", "video/quicktime"];
-                const validVideoExts = ["mp4", "webm", "ogg", "mov", "avi", "mkv"];
-                const validPdfTypes = ["application/pdf"];
-                const validPdfExts = ["pdf"];
-
-                if (type === "video") {
-                    if (!validVideoTypes.includes(file.type) && !validVideoExts.includes(fileExt)) {
-                        throw new Error(
-                            `❌ Format video tidak valid.\n\nFormat yang didukung: MP4, WebM, OGG, MOV\nFile Anda: ${file.type || fileExt}`
-                        );
-                    }
-                } else if (type === "pdf") {
-                    if (!validPdfTypes.includes(file.type) && !validPdfExts.includes(fileExt)) {
-                        throw new Error(
-                            `❌ Format file bukan PDF.\n\nFile Anda: ${file.type || fileExt}`
-                        );
-                    }
+                // Validate type
+                const validVideoExts = ["mp4","webm","ogg","mov","avi","mkv"];
+                const validVideoTypes = ["video/mp4","video/webm","video/ogg","video/quicktime"];
+                if (type === "video" && !validVideoTypes.includes(file.type) && !validVideoExts.includes(fileExt)) {
+                    throw new Error(`Format video tidak valid. Didukung: MP4, WebM, OGG, MOV. File: ${file.type || fileExt}`);
+                }
+                if (type === "pdf" && file.type !== "application/pdf" && fileExt !== "pdf") {
+                    throw new Error(`Format bukan PDF. File: ${file.type || fileExt}`);
                 }
 
-                // Validate file size (500MB for video, 50MB for PDF)
+                // Validate size
                 const maxSize = type === "video" ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
-                const maxSizeMB = type === "video" ? 500 : 50;
                 if (file.size > maxSize) {
-                    throw new Error(
-                        `❌ Ukuran file terlalu besar!\n\nMaksimal: ${maxSizeMB}MB\nFile Anda: ${(file.size / 1024 / 1024).toFixed(2)}MB`
-                    );
+                    throw new Error(`Ukuran file melebihi batas ${type === "video" ? "500" : "50"}MB. File: ${(file.size/1024/1024).toFixed(2)}MB`);
                 }
 
-                const fullFileName = `${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
-                const filePath = `${courseId}/${fullFileName}`;
+                if (statusEl) statusEl.textContent = `Mengupload ${type === "video" ? "video" : "PDF"} (${(file.size/1024/1024).toFixed(1)}MB)...`;
 
-                if (statusEl) statusEl.textContent = `Mengupload ${type === "video" ? "video" : "PDF"} (${(file.size / 1024 / 1024).toFixed(1)}MB)...`;
+                const uploadForm = new FormData();
+                uploadForm.append("file", file);
+                uploadForm.append("courseId", courseId);
 
-                const { data: uploadData, error: uploadError } =
-                    await supabase.storage
-                        .from("materials")
-                        .upload(filePath, file, {
-                            cacheControl: "3600",
-                            upsert: false,
-                        });
+                const uploadRes = await fetch("/api/builder/upload", {
+                    method: "POST",
+                    body: uploadForm,
+                });
+                const uploadResult = await uploadRes.json();
+                if (!uploadRes.ok) throw new Error(uploadResult.error || "Upload gagal");
 
-                if (uploadError) {
-                    console.error("=== UPLOAD ERROR DEBUG ===");
-                    console.error("Error object:", uploadError);
-                    console.error("Error message:", uploadError.message);
-                    console.error("Full error:", JSON.stringify(uploadError));
-                    console.error("========================");
-                    
-                    const errorMsg = uploadError.message || "Unknown upload error";
-                    
-                    if (errorMsg.includes("Bucket") && errorMsg.includes("not found")) {
-                        throw new Error(
-                            "❌ Storage bucket 'materials' TIDAK DITEMUKAN\n\nHubungi admin untuk membuat bucket storage."
-                        );
-                    }
-                    if (errorMsg.includes("policy") || errorMsg.includes("permission") || errorMsg.includes("not allowed")) {
-                        throw new Error(
-                            "❌ AKSES DITOLAK\n\nHubungi admin untuk mengatur izin storage."
-                        );
-                    }
-                    if (errorMsg.includes("limit") || errorMsg.includes("Limit") || errorMsg.includes("size") || errorMsg.includes("Size")) {
-                        throw new Error(
-                            `❌ BATAS PENYIMPANAN\n\nDetail: ${errorMsg}\nUkuran file: ${(file.size / 1024 / 1024).toFixed(2)}MB`
-                        );
-                    }
-                    
-                    throw new Error(`❌ Upload Gagal\n\nError: ${errorMsg}\nUkuran file: ${(file.size / 1024 / 1024).toFixed(2)}MB`);
-                }
-
-                const {
-                    data: { publicUrl },
-                } = supabase.storage.from("materials").getPublicUrl(filePath);
-                content = publicUrl;
+                content = uploadResult.publicUrl;
                 if (statusEl) statusEl.textContent = "✅ File berhasil diupload";
             }
 
@@ -869,10 +794,15 @@ if (!user || user.role !== "instructor") {
                 matPayload.id = matId;
             }
 
-            const { error: insertError } = await (supabase as any)
-                .from("materials")
-                .upsert([matPayload]);
-            if (insertError) throw insertError;
+            const matRes = await fetch(`/api/builder/materials`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(matPayload),
+            });
+            if (!matRes.ok) {
+                const matResult = await matRes.json();
+                throw new Error(matResult.error || "Gagal menyimpan material");
+            }
 
             closeM();
             materialForm.reset();
@@ -919,16 +849,28 @@ if (!user || user.role !== "instructor") {
 
     async function deleteItem(table: string, id: string, msg: string) {
         if (confirm(msg)) {
-            await (supabase as any).from(table).delete().eq("id", id);
+            const res = await fetch(`/api/builder/${table}/${id}`, { method: "DELETE" });
+            if (!res.ok) {
+                const result = await res.json();
+                alert("Gagal hapus: " + (result.error || "Unknown error"));
+                return;
+            }
             refresh();
         }
     }
 
     // Initialize
-    async function init() {
-        const course = await checkOwnership();
-        if (course) {
+    async function init(retries = 4) {
+        const result = await checkOwnership();
+        if (result.course) {
             refresh();
+        } else if (result.notFound && retries > 0) {
+            // Course might not be available yet (race condition after creation) — retry
+            setTimeout(() => init(retries - 1), 800);
+        } else {
+            // Wrong owner or not found after all retries
+            document.getElementById("loading")!.style.display = "none";
+            document.getElementById("access-denied")!.classList.remove("hidden");
         }
     }
 

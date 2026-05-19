@@ -55,6 +55,26 @@ const sortedModules = (modules || []).map((mod: any) => ({
     (a: any, b: any) => (a.order_no || 0) - (b.order_no || 0),
   ),
 }));
+
+// Server-side: check enrollment & fetch progress (avoids failing client-side Supabase calls)
+const { data: enrollment } = await supabase
+  .from("enrollments")
+  .select("id")
+  .eq("user_id", user.id)
+  .eq("class_id", courseId)
+  .maybeSingle();
+
+if (!enrollment) {
+  return Astro.redirect(`/courses/${courseId}`);
+}
+
+const { data: progressRows } = await supabase
+  .from("progress")
+  .select("material_id")
+  .eq("user_id", user.id)
+  .eq("completed", true);
+
+const completedMaterialIds: string[] = (progressRows || []).map((p: any) => p.material_id);
 ---
 
 <Layout>
@@ -197,48 +217,21 @@ const sortedModules = (modules || []).map((mod: any) => ({
     class="hidden"
     data-course-id={courseId}
     data-material-id={materialId}
+    data-completed-ids={JSON.stringify(completedMaterialIds)}
   >
   </div>
 </Layout>
 
 <script>
-  import { supabase } from "../../../../lib/supabase";
-
   async function init() {
-    const userEl = document.getElementById("user-data");
-    const userStr = userEl ? userEl.dataset.user : null;
-    if (!userStr || userStr === "null") {
-      window.location.href = "/login";
-      return;
-    }
-    const user = JSON.parse(userStr);
-    const courseId = (document.getElementById("data-bridge") as HTMLElement)
-      .dataset.courseId;
-    const materialId = (document.getElementById("data-bridge") as HTMLElement)
-      .dataset.materialId;
+    const bridge = document.getElementById("data-bridge") as HTMLElement;
+    const courseId = bridge.dataset.courseId;
+    const materialId = bridge.dataset.materialId;
 
-    // 1. Check Enrollment
-    const { data: enrollment } = await (supabase as any)
-      .from("enrollments")
-      .select("id")
-      .eq("user_id", user.id)
-      .eq("class_id", courseId || "")
-      .single();
-
-    if (!enrollment) {
-      alert("You must enroll in this course to access the materials.");
-      window.location.href = `/courses/${courseId}`;
-      return;
-    }
-
-    // 2. Fetch Progress and Lock/Unlock materials
-    const { data: progress } = await (supabase as any)
-      .from("progress")
-      .select("material_id, completed")
-      .eq("user_id", user.id)
-      .eq("completed", true);
-
-    const completedIds = new Set((progress as any[])?.map((p) => p.material_id) || []);
+    // Data sudah di-fetch server-side, baca dari HTML
+    const completedIds = new Set<string>(
+      JSON.parse(bridge.dataset.completedIds || "[]")
+    );
     const materialLinks = Array.from(
       document.querySelectorAll(".material-links li"),
     );
@@ -305,21 +298,19 @@ const sortedModules = (modules || []).map((mod: any) => ({
 
     markBtns.forEach(btn => {
       btn.addEventListener("click", async () => {
-        const { error } = await (supabase.from("progress") as any).upsert(
-          {
-            user_id: user.id || "",
-            material_id: materialId || "",
-            completed: true,
-            completed_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,material_id" },
-        );
-
-        if (error) {
-          console.error(error);
-          alert("Error updating progress");
-        } else {
+        try {
+          const res = await fetch(`/api/progress/${materialId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+          });
+          if (!res.ok) {
+            const d = await res.json();
+            throw new Error(d.error || "Gagal menyimpan progress");
+          }
           window.location.reload();
+        } catch (e: any) {
+          console.error(e);
+          alert("Error: " + e.message);
         }
       });
     });

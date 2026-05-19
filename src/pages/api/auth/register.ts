@@ -1,18 +1,39 @@
 import type { APIRoute } from "astro";
-import { getSupabaseServerClient } from "../../../lib/supabase";
+import { createClient } from "@supabase/supabase-js";
+
+// Gunakan admin client dengan service role key untuk bypass email confirmation.
+// Self-hosted Supabase biasanya tidak punya SMTP dikonfigurasi, sehingga
+// supabase.auth.signUp() akan gagal dengan "Error sending confirmation email".
+// admin.createUser() dengan email_confirm: true membuat user langsung aktif.
+function getAdminClient() {
+    const url =
+        process.env.SUPABASE_INTERNAL_URL ||
+        process.env.PUBLIC_SUPABASE_URL ||
+        import.meta.env.PUBLIC_SUPABASE_URL ||
+        "";
+    const serviceKey =
+        process.env.SUPABASE_SERVICE_ROLE_KEY || "";
+
+    if (!url || !serviceKey) {
+        throw new Error("[register] SUPABASE_SERVICE_ROLE_KEY tidak dikonfigurasi");
+    }
+    return createClient(url, serviceKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+    });
+}
 
 export const POST: APIRoute = async (context) => {
     const formData = await context.request.formData();
-    const email = formData.get("email")?.toString();
+    const email = formData.get("email")?.toString()?.trim();
     const password = formData.get("password")?.toString();
-    const name = formData.get("name")?.toString() || "";
-    // SECURITY: Always force role to 'student' for self-registration
-    // Only admins can promote users to instructor/admin via admin panel
+    const name = formData.get("name")?.toString()?.trim() || "";
+    // SECURITY: Always force role to 'student' for self-registration.
+    // Only admins can promote users to instructor/admin via admin panel.
     const role = "student";
 
     if (!email || !password) {
         return new Response(
-            JSON.stringify({ error: "Email and password are required" }),
+            JSON.stringify({ error: "Email dan password wajib diisi" }),
             { status: 400, headers: { "Content-Type": "application/json" } }
         );
     }
@@ -24,15 +45,35 @@ export const POST: APIRoute = async (context) => {
         );
     }
 
-    const supabase = getSupabaseServerClient(context);
+    let adminClient: ReturnType<typeof createClient>;
+    try {
+        adminClient = getAdminClient();
+    } catch (configErr: any) {
+        console.error("[register] Config error:", configErr.message);
+        return new Response(
+            JSON.stringify({ error: "Konfigurasi server tidak lengkap. Hubungi admin." }),
+            { status: 503, headers: { "Content-Type": "application/json" } }
+        );
+    }
 
-    // Sign up using Supabase Auth
-    const { data, error } = await supabase.auth.signUp({
+    // Buat user via Admin API — email_confirm: true agar langsung aktif tanpa email konfirmasi.
+    // Ini solusi untuk self-hosted Supabase tanpa SMTP terkonfigurasi.
+    const { data, error } = await adminClient.auth.admin.createUser({
         email,
         password,
+        email_confirm: true,
+        user_metadata: { name, role },
     });
 
     if (error) {
+        console.error("[register] Auth admin createUser error:", error.message);
+        // Tangani duplikat email dengan pesan yang lebih ramah
+        if (error.message.toLowerCase().includes("already") || error.status === 422) {
+            return new Response(
+                JSON.stringify({ error: "Email sudah terdaftar" }),
+                { status: 409, headers: { "Content-Type": "application/json" } }
+            );
+        }
         return new Response(
             JSON.stringify({ error: error.message }),
             { status: 400, headers: { "Content-Type": "application/json" } }
@@ -40,22 +81,23 @@ export const POST: APIRoute = async (context) => {
     }
 
     if (data.user) {
-        // Insert metadata to the custom users table
-        const { error: profileError } = await (supabase as any).from("users").insert({
+        // Simpan data profil ke tabel users kustom.
+        // Jika trigger handle_auth_user_created sudah aktif di DB, ini akan di-skip (ON CONFLICT).
+        const { error: profileError } = await (adminClient as any).from("users").upsert({
             id: data.user.id,
-            name,
+            name: name || email.split("@")[0],
             email,
             role,
-        });
+        }, { onConflict: "id" });
 
         if (profileError) {
-            console.error("Profile creation error:", profileError);
-            // NOTE: We don't fail here since the auth account is created, but it's something to log
+            // Bukan error fatal — auth user sudah dibuat, profil bisa dibuat ulang via trigger
+            console.error("[register] Profile upsert error:", profileError.message);
         }
     }
 
     return new Response(
-        JSON.stringify({ message: "Registration successful" }),
+        JSON.stringify({ message: "Registrasi berhasil! Silakan login." }),
         { status: 200, headers: { "Content-Type": "application/json" } }
     );
 };

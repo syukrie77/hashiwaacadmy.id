@@ -117,10 +117,19 @@ export const onRequest = defineMiddleware(async (context, next) => {
         }
 
         // C. Protect general authorized routes
-        const protectedRoutes = ["/dashboard", "/profile", "/payment", "/courses/*/learn", "/courses/*/exams"];
+        const protectedRoutes = [
+            "/dashboard",
+            "/profile",
+            "/payment",
+            "/courses/*/learn",
+            "/courses/*/exams",
+            "/courses/*/assignments",
+        ];
         const isProtected = protectedRoutes.some(route => {
             if (route.includes("*")) {
-                const regex = new RegExp("^" + route.replace("*", ".*"));
+                // Escape special regex chars except the wildcard placeholder
+                const escaped = route.replace(/[.+?^${}()|[\]\\]/g, "\\$&");
+                const regex = new RegExp("^" + escaped.replace("\\*", "[^/]+"));
                 return regex.test(path);
             }
             return path.startsWith(route);

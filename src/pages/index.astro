@@ -56,6 +56,58 @@ if (isSupabaseConfigured) {
 		</div>
 	</section>
 
+	<!-- Stats Section -->
+	<section class="stats-section">
+		<div class="stats-grid">
+			<div class="stat-card">
+				<div class="stat-number">85.000+</div>
+				<div class="stat-label">Siswa Terdaftar</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-number">3</div>
+				<div class="stat-label">Kategori Program</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-number">65+</div>
+				<div class="stat-label">Kursus Tersedia</div>
+			</div>
+			<div class="stat-card">
+				<div class="stat-number">2022</div>
+				<div class="stat-label">Tahun Berdiri</div>
+			</div>
+		</div>
+	</section>
+
+	<!-- Categories Section -->
+	<section class="categories-section">
+		<div class="section-header">
+			<div>
+				<span class="badge-accent">Program Kami</span>
+				<h2>Pilih Jalur Karier Anda</h2>
+			</div>
+		</div>
+		<div class="categories-grid">
+			<div class="category-card category-tokutei">
+				<div class="category-icon">🏭</div>
+				<h3>Tokutei Ginou</h3>
+				<p>Program khusus untuk visa kerja Tokutei Ginou — bekerja di industri Jepang dengan keterampilan spesifik.</p>
+				<span class="category-count">25 Kursus</span>
+			</div>
+			<div class="category-card category-techno">
+				<div class="category-icon">💻</div>
+				<h3>Techno Shoku</h3>
+				<p>Program teknis untuk kamu yang ingin berkarier di bidang IT dan teknologi di Jepang.</p>
+				<span class="category-count">10 Kursus</span>
+			</div>
+			<div class="category-card category-reguler">
+				<div class="category-icon">📚</div>
+				<h3>Reguler</h3>
+				<p>Kursus bahasa Jepang reguler dari level N5 hingga N1 — untuk semua tujuan belajar.</p>
+				<span class="category-count">30 Kursus</span>
+			</div>
+		</div>
+	</section>
+
 	<!-- Program Section -->
 	<section id="courses" class="courses-section">
 		<div class="section-header">
@@ -109,10 +161,15 @@ if (isSupabaseConfigured) {
 		<div class="cta-card">
 			<h2>Siap Melangkah Ke Jepang?</h2>
 			<p>
-				Bergabunglah dengan ratusan alumni kami yang telah sukses
+				Bergabunglah dengan ribuan alumni kami yang telah sukses
 				berkarier di Negeri Sakura.
 			</p>
-			<a href="/contact" class="btn btn-dark btn-lg">Hubungi Konsultan</a>
+			<div class="cta-actions">
+				<a href="/contact" class="btn btn-dark btn-lg">Hubungi Konsultan</a>
+				<a href="https://wa.me/6208776022000" target="_blank" rel="noopener noreferrer" class="btn btn-wa btn-lg">
+					💬 WhatsApp 0877 6022 000
+				</a>
+			</div>
 		</div>
 	</section>
 </Layout>
@@ -286,6 +343,104 @@ if (isSupabaseConfigured) {
 		color: #111827;
 	}
 
+	/* Stats Section */
+	.stats-section {
+		margin-bottom: 4rem;
+	}
+
+	.stats-grid {
+		display: grid;
+		grid-template-columns: repeat(4, 1fr);
+		gap: 1.5rem;
+	}
+
+	.stat-card {
+		background: white;
+		border: 1px solid var(--border-color);
+		border-radius: 1.25rem;
+		padding: 2rem 1.5rem;
+		text-align: center;
+	}
+
+	.stat-number {
+		font-size: 2.5rem;
+		font-weight: 800;
+		color: var(--primary-color);
+		line-height: 1;
+		margin-bottom: 0.5rem;
+	}
+
+	.stat-label {
+		font-size: 0.875rem;
+		color: #6b7280;
+		font-weight: 500;
+	}
+
+	/* Categories Section */
+	.categories-section {
+		margin-bottom: 4rem;
+	}
+
+	.categories-grid {
+		display: grid;
+		grid-template-columns: repeat(3, 1fr);
+		gap: 1.5rem;
+	}
+
+	.category-card {
+		border-radius: 1.5rem;
+		padding: 2rem;
+		display: flex;
+		flex-direction: column;
+		gap: 0.75rem;
+		border: 1px solid transparent;
+	}
+
+	.category-tokutei {
+		background: #fef3c7;
+		border-color: #fde68a;
+	}
+
+	.category-techno {
+		background: #eff6ff;
+		border-color: #bfdbfe;
+	}
+
+	.category-reguler {
+		background: #f0fdf4;
+		border-color: #bbf7d0;
+	}
+
+	.category-icon {
+		font-size: 2.5rem;
+	}
+
+	.category-card h3 {
+		font-size: 1.25rem;
+		font-weight: 800;
+		margin: 0;
+		color: #111827;
+	}
+
+	.category-card p {
+		font-size: 0.9rem;
+		color: #4b5563;
+		margin: 0;
+		line-height: 1.5;
+		flex: 1;
+	}
+
+	.category-count {
+		font-size: 0.8rem;
+		font-weight: 700;
+		color: #92400e;
+		background: rgba(245, 158, 11, 0.15);
+		padding: 0.25rem 0.6rem;
+		border-radius: 999px;
+		display: inline-block;
+		width: fit-content;
+	}
+
 	/* CTA Section */
 	.cta-section {
 		margin: 4rem 0;
@@ -311,6 +466,13 @@ if (isSupabaseConfigured) {
 		margin-bottom: 2.5rem;
 	}
 
+	.cta-actions {
+		display: flex;
+		gap: 1rem;
+		justify-content: center;
+		flex-wrap: wrap;
+	}
+
 	.btn-dark {
 		background: white;
 		color: #111827;
@@ -319,6 +481,17 @@ if (isSupabaseConfigured) {
 
 	.btn-dark:hover {
 		background: var(--primary-color);
+		color: white;
+	}
+
+	.btn-wa {
+		background: #25d366;
+		color: white;
+		border: none;
+	}
+
+	.btn-wa:hover {
+		background: #1da851;
 		color: white;
 	}
 
@@ -353,6 +526,18 @@ if (isSupabaseConfigured) {
 
 		.hero-image {
 			order: -1;
+		}
+
+		.stats-grid {
+			grid-template-columns: repeat(2, 1fr);
+		}
+
+		.stat-number {
+			font-size: 2rem;
+		}
+
+		.categories-grid {
+			grid-template-columns: 1fr;
 		}
 
 		.section-header {

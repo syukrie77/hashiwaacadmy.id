@@ -44,6 +44,7 @@ const user = Astro.locals.user;
 					<ul class="nav-links">
 						<li><a href="/">Home</a></li>
 						<li><a href="/dashboard">Dashboard</a></li>
+						<li><a href="/contact">Kontak</a></li>
 						{
 							user?.role === "admin" && (
 								<li>
@@ -168,7 +169,44 @@ const user = Astro.locals.user;
 			}
 		</script>
 		<footer>
-			<p>&copy; {new Date().getFullYear()} Hashiwa E-Learning. All rights reserved.</p>
+			<div class="footer-grid">
+				<div class="footer-brand">
+					<div class="footer-logo">Hashiwa</div>
+					<p>Pusat studi bahasa Jepang untuk kamu yang siap melangkah dari lokal ke global.</p>
+					<a href="https://instagram.com/hashiwaacademy" target="_blank" rel="noopener noreferrer" class="footer-instagram">
+						📸 @hashiwaacademy
+					</a>
+				</div>
+				<div class="footer-section">
+					<h4>Navigasi</h4>
+					<ul>
+						<li><a href="/">Beranda</a></li>
+						<li><a href="/dashboard">Dashboard</a></li>
+						<li><a href="/contact">Kontak Kami</a></li>
+						<li><a href="/register">Daftar Sekarang</a></li>
+					</ul>
+				</div>
+				<div class="footer-section">
+					<h4>Kantor Indonesia</h4>
+					<address>
+						Prima Harapan Regency<br />
+						Ruko PHR Loft EC-11<br />
+						Kota Bekasi, Indonesia
+					</address>
+					<a href="https://wa.me/6208776022000" class="footer-phone">📞 0877 6022 000</a>
+				</div>
+				<div class="footer-section">
+					<h4>Kantor Jepang</h4>
+					<address>
+						8F Keihan Yodoyabashi Building<br />
+						3-2-25 Kitahama, Chuo-ku<br />
+						Osaka-shi, Osaka 541-0041 Japan
+					</address>
+				</div>
+			</div>
+			<div class="footer-bottom">
+				<p>&copy; {new Date().getFullYear()} Hashiwa Japanese Academy (PT Hashiwa Global Strategy). All rights reserved.</p>
+			</div>
 		</footer>
 	</body>
 </html>
@@ -346,11 +384,107 @@ const user = Astro.locals.user;
 	}
 
 	footer {
-		text-align: center;
-		padding: 2rem;
 		color: #6b7280;
-		background-color: var(--card-bg);
+		background-color: #111827;
 		border-top: 1px solid var(--border-color);
+		margin-top: 4rem;
+	}
+
+	.footer-grid {
+		max-width: 1200px;
+		margin: 0 auto;
+		padding: 3rem 2rem 2rem;
+		display: grid;
+		grid-template-columns: 2fr 1fr 1fr 1fr;
+		gap: 2rem;
+	}
+
+	.footer-logo {
+		font-weight: 800;
+		font-size: 1.5rem;
+		color: var(--primary-color);
+		text-transform: uppercase;
+		letter-spacing: 1px;
+		margin-bottom: 0.75rem;
+	}
+
+	.footer-brand p {
+		font-size: 0.9rem;
+		color: rgba(255,255,255,0.6);
+		line-height: 1.6;
+		margin: 0 0 1rem;
+	}
+
+	.footer-instagram {
+		color: var(--primary-color);
+		text-decoration: none;
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+
+	.footer-instagram:hover {
+		text-decoration: underline;
+	}
+
+	.footer-section h4 {
+		color: white;
+		font-size: 0.875rem;
+		font-weight: 700;
+		text-transform: uppercase;
+		letter-spacing: 0.05em;
+		margin: 0 0 1rem;
+	}
+
+	.footer-section ul {
+		list-style: none;
+		padding: 0;
+		margin: 0;
+		display: flex;
+		flex-direction: column;
+		gap: 0.5rem;
+	}
+
+	.footer-section ul a {
+		color: rgba(255,255,255,0.6);
+		text-decoration: none;
+		font-size: 0.875rem;
+		transition: color 0.2s;
+	}
+
+	.footer-section ul a:hover {
+		color: var(--primary-color);
+	}
+
+	.footer-section address {
+		font-style: normal;
+		font-size: 0.875rem;
+		color: rgba(255,255,255,0.6);
+		line-height: 1.7;
+		margin-bottom: 0.75rem;
+	}
+
+	.footer-phone {
+		color: var(--primary-color);
+		text-decoration: none;
+		font-size: 0.875rem;
+		font-weight: 600;
+	}
+
+	.footer-phone:hover {
+		text-decoration: underline;
+	}
+
+	.footer-bottom {
+		border-top: 1px solid rgba(255,255,255,0.1);
+		padding: 1.25rem 2rem;
+		text-align: center;
+	}
+
+	.footer-bottom p {
+		max-width: 1200px;
+		margin: 0 auto;
+		font-size: 0.8rem;
+		color: rgba(255,255,255,0.4);
 	}
 
 	/* Responsive Design */
@@ -451,6 +585,16 @@ const user = Astro.locals.user;
 		main {
 			padding: 0 1rem;
 			margin: 1rem auto;
+		}
+
+		.footer-grid {
+			grid-template-columns: 1fr 1fr;
+			padding: 2rem 1rem 1.5rem;
+			gap: 1.5rem;
+		}
+
+		.footer-bottom {
+			padding: 1rem;
 		}
 	}
 </style>
