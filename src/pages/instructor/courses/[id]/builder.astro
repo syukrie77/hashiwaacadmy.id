@@ -12,82 +12,95 @@ if (!user || user.role !== "instructor") {
 <script
     src="https://cdn.tiny.cloud/1/zw0yo6gdvindf5fnz6xdlxsj3915hecnselxs4f4sdzoo868/tinymce/6/tinymce.min.js"
     referrerpolicy="origin"></script>
+
 <Layout>
     <div id="user-data" data-user={JSON.stringify(user)} class="hidden"></div>
-    <div class="instructor-container">
-        <aside class="instructor-sidebar">
+
+    <!-- Toast -->
+    <div id="toast-container"></div>
+
+    <!-- Custom Confirm Dialog -->
+    <div id="confirm-overlay" class="hidden">
+        <div class="confirm-box">
+            <p id="confirm-message">Apakah Anda yakin?</p>
+            <div class="confirm-actions">
+                <button id="confirm-no" class="btn btn-outline">Batal</button>
+                <button id="confirm-yes" class="btn btn-danger">Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="admin-container">
+        <aside class="admin-sidebar">
             <div class="brand">Instructor Panel</div>
             <nav>
                 <a href="/instructor/dashboard">Dashboard</a>
-                <a href="#" class="active" id="current-course-link"
-                    >Course Builder</a
-                >
+                <a href="/instructor/dashboard" class="active">Kursus Saya</a>
+                <div class="nav-divider"></div>
             </nav>
-            <div class="footer">
-                <a href="/dashboard">Kembali ke Dashboard</a>
+            <div class="sidebar-footer">
+                <a href="/dashboard">← Kembali ke Dashboard</a>
             </div>
         </aside>
 
-        <main class="instructor-main">
-            <div class="instructor-header">
+        <main class="admin-main">
+            <div class="admin-header">
                 <div>
-                    <h1 id="course-title">Loading Course...</h1>
+                    <h1 id="course-title">Memuat...</h1>
                     <p id="course-desc" class="muted"></p>
                 </div>
-                <div class="actions">
-                    <a href="/instructor/dashboard" class="btn btn-outline"
-                        >Kembali</a
-                    >
-                    <button id="add-module-btn" class="btn btn-primary"
-                        >+ Tambah Modul</button
-                    >
-                </div>
+                <a href="/instructor/dashboard" class="btn btn-outline">← Kembali</a>
             </div>
 
-            <div id="loading" class="state-message">
-                Memuat konten course...
-            </div>
+            <div id="loading" class="state-message">Memuat konten kursus...</div>
 
-            <div id="access-denied" class="state-message hidden">
-                <p>
-                    ❌ Akses ditolak. Anda tidak memiliki izin untuk mengelola
-                    course ini.
-                </p>
-                <a href="/instructor/dashboard" class="btn btn-primary"
-                    >Kembali ke Dashboard</a
-                >
-            </div>
-
-            <div id="builder-content" class="builder-container hidden">
+            <div id="builder-content" class="hidden">
                 <div class="builder-tabs">
-                    <button class="tab-btn active" data-tab="modules"
-                        >Modul & Materi</button
-                    >
-                    <button class="tab-btn" data-tab="assignments">Tugas</button
-                    >
+                    <button class="tab-btn active" data-tab="modules">Modul &amp; Materi</button>
+                    <button class="tab-btn" data-tab="assignments">Tugas</button>
                     <button class="tab-btn" data-tab="exams">Ujian</button>
                 </div>
 
+                <!-- MODULES TAB -->
                 <div id="tab-modules" class="tab-content active">
-                    <div id="modules-list" class="modules-grid"></div>
+                    <div class="split-panel">
+                        <div class="modules-panel">
+                            <div class="panel-header">
+                                <span class="panel-title">Modul</span>
+                                <button id="add-module-btn" class="btn btn-primary btn-sm">+ Modul</button>
+                            </div>
+                            <div id="modules-list"></div>
+                        </div>
+                        <div class="materials-panel">
+                            <div id="no-module-msg" class="empty-center">
+                                <div class="empty-icon">📚</div>
+                                <p>Pilih modul untuk mengelola materi</p>
+                            </div>
+                            <div id="materials-view" class="hidden">
+                                <div class="panel-header">
+                                    <span class="panel-title" id="materials-panel-title">Materi</span>
+                                    <button id="add-material-btn" class="btn btn-primary btn-sm">+ Materi</button>
+                                </div>
+                                <div id="materials-list"></div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
 
+                <!-- ASSIGNMENTS TAB -->
                 <div id="tab-assignments" class="tab-content">
-                    <div class="section-header">
+                    <div class="tab-toolbar">
                         <h2>Tugas</h2>
-                        <button id="add-assignment-btn" class="btn btn-primary"
-                            >+ Tambah Tugas</button
-                        >
+                        <button id="add-assignment-btn" class="btn btn-primary">+ Tambah Tugas</button>
                     </div>
                     <div id="assignments-list" class="items-list"></div>
                 </div>
 
+                <!-- EXAMS TAB -->
                 <div id="tab-exams" class="tab-content">
-                    <div class="section-header">
+                    <div class="tab-toolbar">
                         <h2>Ujian</h2>
-                        <button id="add-exam-btn" class="btn btn-primary"
-                            >+ Tambah Ujian</button
-                        >
+                        <button id="add-exam-btn" class="btn btn-primary">+ Tambah Ujian</button>
                     </div>
                     <div id="exams-list" class="items-list"></div>
                 </div>
@@ -95,146 +108,183 @@ if (!user || user.role !== "instructor") {
         </main>
     </div>
 
-    <!-- Modals -->
+    <!-- MODULE MODAL -->
     <div id="module-modal" class="modal hidden">
-        <div class="modal-content">
-            <h3 id="modal-title">Tambah Modul</h3>
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3 id="module-modal-title">Tambah Modul</h3>
+                <button class="modal-close closeModal">×</button>
+            </div>
             <form id="module-form">
-                <input type="hidden" id="module-id" />
-                <div class="form-group">
-                    <label>Judul Modul</label>
-                    <input type="text" id="m-title" required />
+                <div class="modal-body">
+                    <input type="hidden" id="module-id" />
+                    <div class="form-group">
+                        <label>Judul Modul</label>
+                        <input type="text" id="m-title" required placeholder="contoh: Pengenalan Hiragana" />
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Harga Modul (Rp) <span class="hint">0 = Gratis</span></label>
+                            <input type="number" id="m-price" placeholder="0" min="0" value="0" />
+                        </div>
+                        <div class="form-group">
+                            <label>Urutan</label>
+                            <input type="number" id="m-order" value="1" min="1" />
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Harga Modul (Rp)</label>
-                    <input
-                        type="number"
-                        id="m-price"
-                        placeholder="0 = Gratis"
-                    />
-                </div>
-                <div class="form-group">
-                    <label>Urutan</label>
-                    <input type="number" id="m-order" value="0" />
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-outline closeModal"
-                        >Batal</button
-                    >
-                    <button type="submit" class="btn btn-primary"
-                        >Simpan Modul</button
-                    >
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline closeModal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan Modul</button>
                 </div>
             </form>
         </div>
     </div>
 
+    <!-- MATERIAL MODAL -->
     <div id="material-modal" class="modal hidden">
         <div class="modal-content">
             <div class="modal-header">
-                <h3>Tambah Materi</h3>
+                <h3 id="material-modal-title">Tambah Materi</h3>
+                <button class="modal-close closeModal">×</button>
             </div>
             <form id="material-form">
                 <div class="modal-body">
                     <input type="hidden" id="mat-id" />
                     <input type="hidden" id="mat-mod-id" />
+                    <input type="hidden" id="mat-existing-content" />
+
                     <div class="form-group">
                         <label>Judul Materi</label>
-                        <input type="text" id="mat-title" required />
+                        <input type="text" id="mat-title" required placeholder="contoh: Cara menulis あ (a)" />
                     </div>
-                    <div class="form-group">
-                        <label>Tipe</label>
-                        <select id="mat-type">
-                            <option value="video">Video</option>
-                            <option value="text">Teks/Artikel</option>
-                            <option value="pdf">PDF Document</option>
-                        </select>
+
+                    <div class="form-row">
+                        <div class="form-group" style="flex:2">
+                            <label>Tipe Konten</label>
+                            <div class="type-selector" id="type-selector">
+                                <button type="button" class="type-btn active" data-type="video">📽️ Video</button>
+                                <button type="button" class="type-btn" data-type="pdf">📄 PDF</button>
+                                <button type="button" class="type-btn" data-type="text">📝 Artikel</button>
+                            </div>
+                            <input type="hidden" id="mat-type" value="video" />
+                        </div>
+                        <div class="form-group" style="flex:1">
+                            <label>Durasi (menit)</label>
+                            <input type="number" id="mat-duration" value="10" min="0" />
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label>Konten (Teks/Artikel)</label>
-                        <textarea
-                            id="mat-content"
-                            rows="4"
-                            placeholder="Masukkan konten teks disini..."
-                        ></textarea>
+
+                    <!-- File upload zone (video & pdf) -->
+                    <div id="file-upload-group" class="form-group">
+                        <label id="file-label">Upload Video</label>
+                        <div id="file-drop-zone" class="file-drop-zone">
+                            <div id="file-placeholder">
+                                <div class="drop-icon">☁️</div>
+                                <p>Klik atau <strong>drag &amp; drop</strong> file di sini</p>
+                                <p class="hint" id="file-hint">MP4, WebM, MOV — maks 500MB</p>
+                            </div>
+                            <div id="file-selected" class="hidden">
+                                <span class="file-icon">📎</span>
+                                <span id="file-name-display" class="file-name"></span>
+                                <button type="button" id="file-clear-btn" class="btn-text-sm">Ganti file</button>
+                            </div>
+                            <input type="file" id="mat-file" class="file-input-hidden" />
+                        </div>
+                        <div id="existing-file-info" class="hidden">
+                            <span class="hint">File saat ini sudah ada. Upload baru untuk mengganti.</span>
+                        </div>
+                        <div id="upload-progress" class="hidden">
+                            <div class="progress-bar">
+                                <div id="progress-fill" style="width:0%"></div>
+                            </div>
+                            <span id="progress-text" class="hint">Mengupload...</span>
+                        </div>
                     </div>
-                    <div class="form-group" id="file-upload-group">
-                        <label id="file-label">Upload File (Video/PDF)</label>
-                        <input
-                            type="file"
-                            id="mat-file"
-                            accept="video/*,.pdf"
-                        />
-                        <div id="upload-status" class="muted"></div>
-                    </div>
-                    <div class="form-group">
-                        <label>Urutan</label>
-                        <input type="number" id="mat-order" value="0" />
-                    </div>
-                    <div class="form-group">
-                        <label>Durasi (menit)</label>
-                        <input type="number" id="mat-duration" value="0" />
+
+                    <!-- Text editor (artikel) -->
+                    <div id="text-content-group" class="form-group hidden">
+                        <label>Konten Artikel</label>
+                        <textarea id="mat-content" rows="6" placeholder="Tulis konten di sini..."></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-outline closeModal"
-                        >Batal</button
-                    >
-                    <button type="submit" class="btn btn-primary"
-                        >Simpan Materi</button
-                    >
+                    <button type="button" class="btn btn-outline closeModal">Batal</button>
+                    <button type="submit" id="mat-submit-btn" class="btn btn-primary">Simpan Materi</button>
                 </div>
             </form>
         </div>
     </div>
 
+    <!-- ASSIGNMENT MODAL -->
     <div id="assignment-modal" class="modal hidden">
-        <div class="modal-content">
-            <h3>Tambah Tugas</h3>
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3>Tambah Tugas</h3>
+                <button class="modal-close closeModal">×</button>
+            </div>
             <form id="assignment-form">
-                <div class="form-group">
-                    <label>Judul</label>
-                    <input type="text" id="ass-title" required />
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Judul Tugas</label>
+                        <input type="text" id="ass-title" required />
+                    </div>
+                    <div class="form-group">
+                        <label>Instruksi <span class="hint">Opsional</span></label>
+                        <textarea id="ass-desc" rows="4"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Deadline <span class="hint">Opsional</span></label>
+                        <input type="datetime-local" id="ass-deadline" />
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Deskripsi</label>
-                    <textarea id="ass-desc" rows="4"></textarea>
-                </div>
-                <div class="form-group">
-                    <label>Deadline</label>
-                    <input type="datetime-local" id="ass-deadline" />
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-outline closeModal"
-                        >Batal</button
-                    >
-                    <button type="submit" class="btn btn-primary"
-                        >Simpan Tugas</button
-                    >
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline closeModal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan Tugas</button>
                 </div>
             </form>
         </div>
     </div>
 
+    <!-- EXAM MODAL -->
     <div id="exam-modal" class="modal hidden">
-        <div class="modal-content">
-            <h3>Tambah Ujian</h3>
+        <div class="modal-content modal-sm">
+            <div class="modal-header">
+                <h3 id="exam-modal-title">Tambah Ujian</h3>
+                <button class="modal-close closeModal">×</button>
+            </div>
             <form id="exam-form">
-                <div class="form-group">
-                    <label>Judul</label>
-                    <input type="text" id="ex-title" required />
+                <div class="modal-body">
+                    <input type="hidden" id="ex-id" />
+                    <div class="form-group">
+                        <label>Judul Ujian</label>
+                        <input type="text" id="ex-title" required />
+                    </div>
+                    <div class="form-group">
+                        <label>Instruksi <span class="hint">Opsional</span></label>
+                        <textarea id="ex-desc" rows="3" placeholder="Instruksi untuk siswa..."></textarea>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>Durasi (menit)</label>
+                            <input type="number" id="ex-duration" value="60" min="5" />
+                        </div>
+                        <div class="form-group">
+                            <label>Nilai Lulus (%)</label>
+                            <input type="number" id="ex-passing" value="60" min="0" max="100" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="toggle-label">
+                            <input type="checkbox" id="ex-published" checked />
+                            <span class="toggle-switch"></span>
+                            <span>Publish sekarang (siswa bisa mengerjakan)</span>
+                        </label>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label>Durasi (menit)</label>
-                    <input type="number" id="ex-duration" value="60" />
-                </div>
-                <div class="modal-actions">
-                    <button type="button" class="btn btn-outline closeModal"
-                        >Batal</button
-                    >
-                    <button type="submit" class="btn btn-primary"
-                        >Simpan Ujian</button
-                    >
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-outline closeModal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan Ujian</button>
                 </div>
             </form>
         </div>
@@ -244,948 +294,556 @@ if (!user || user.role !== "instructor") {
 <script>
     import { supabase } from "../../../../lib/supabase";
 
-    // Get ID from URL /instructor/courses/[id]/builder
     const pathParts = window.location.pathname.split("/");
     const courseId = pathParts[pathParts.length - 2];
+    let activeModuleId: string | null = null;
+    let cachedData: any = null;
 
-    const userEl = document.getElementById("user-data");
-    const userStr = userEl ? userEl.dataset.user : null;
-    if (!userStr) {
-        window.location.href = "/login";
+    function toast(message: string, type: "success" | "error" | "info" = "info") {
+        const container = document.getElementById("toast-container")!;
+        const el = document.createElement("div");
+        el.className = `toast toast-${type}`;
+        el.textContent = message;
+        container.appendChild(el);
+        requestAnimationFrame(() => el.classList.add("show"));
+        setTimeout(() => { el.classList.remove("show"); setTimeout(() => el.remove(), 300); }, 3500);
     }
 
-    const user = userStr ? JSON.parse(userStr) : null;
-
-    // Check if user is instructor
-    if (user && user.role !== "instructor") {
-        alert("Akses ditolak. Halaman ini khusus untuk Instructor.");
-        window.location.href = "/dashboard";
-    }
-
-    async function checkOwnership() {
-        const res = await fetch(`/api/courses/${courseId}/data`);
-        if (res.status === 403) {
-            // 403 = access denied (not owner)
-            return { notFound: false, course: null };
-        }
-        if (!res.ok) {
-            // 404 or other error = not found yet
-            return { notFound: true, course: null };
-        }
-        const data = await res.json();
-        return { notFound: false, course: data.course };
+    function showConfirm(message: string): Promise<boolean> {
+        return new Promise((resolve) => {
+            const overlay = document.getElementById("confirm-overlay")!;
+            document.getElementById("confirm-message")!.textContent = message;
+            overlay.classList.remove("hidden");
+            const cleanup = (result: boolean) => {
+                overlay.classList.add("hidden");
+                document.getElementById("confirm-yes")!.replaceWith(document.getElementById("confirm-yes")!.cloneNode(true));
+                document.getElementById("confirm-no")!.replaceWith(document.getElementById("confirm-no")!.cloneNode(true));
+                resolve(result);
+            };
+            document.getElementById("confirm-yes")!.onclick = () => cleanup(true);
+            document.getElementById("confirm-no")!.onclick = () => cleanup(false);
+        });
     }
 
     async function fetchData() {
         const res = await fetch(`/api/courses/${courseId}/data`);
-        if (!res.ok) return { course: null, modules: null, materials: null, assignments: null, exams: null };
+        if (!res.ok) return null;
         return await res.json();
     }
 
-    function renderBuilder(data: any) {
-        if (!data.course) return;
-        document.getElementById("course-title")!.textContent =
-            data.course.title;
-        document.getElementById("course-desc")!.textContent =
-            data.course.description;
-
-        renderModules(data);
+    async function refresh(keepModule = true) {
+        const data = await fetchData();
+        if (!data) { toast("Gagal memuat data kursus", "error"); return; }
+        cachedData = data;
+        document.getElementById("loading")!.style.display = "none";
+        document.getElementById("builder-content")!.classList.remove("hidden");
+        if (data.course) {
+            document.getElementById("course-title")!.textContent = data.course.title;
+            document.getElementById("course-desc")!.textContent = data.course.description || "";
+        }
+        renderModulesList(data);
         renderAssignments(data);
         renderExams(data);
+        if (keepModule && activeModuleId) {
+            const stillExists = (data.modules || []).find((m: any) => m.id === activeModuleId);
+            if (stillExists) renderMaterialsPanel(activeModuleId, data);
+            else { activeModuleId = null; showNoModuleMsg(); }
+        }
     }
 
-    function renderModules(data: any) {
-        const container = document.getElementById("modules-list");
-        if (!container) return;
-        container.innerHTML = "";
-
-        if (!data.modules || data.modules.length === 0) {
-            container.innerHTML =
-                '<div class="empty-state">Belum ada modul.</div>';
+    function renderModulesList(data: any) {
+        const container = document.getElementById("modules-list")!;
+        const modules: any[] = data.modules || [];
+        if (modules.length === 0) {
+            container.innerHTML = '<div class="empty-small">Belum ada modul.</div>';
             return;
         }
-
-        data.modules.forEach((mod: any) => {
-            const modEl = document.createElement("div");
-            modEl.className = "module-card";
-            modEl.innerHTML = `
-                <div class="module-header">
-                    <div>
-                        <h3>${mod.title}</h3>
-                        ${mod.price > 0 ? `<div class="badge-price">Rp ${mod.price.toLocaleString("id-ID")}</div>` : ""}
-                    </div>
-                    <div class="mod-actions">
-                        <button class="btn-sm btn-outline add-mat" data-id="${mod.id}">+ Materi</button>
-                        <button class="btn-sm btn-outline edit-mod" data-id="${mod.id}">Edit</button>
-                        <button class="btn-sm btn-outline delete-mod" data-id="${mod.id}">Hapus</button>
-                    </div>
+        container.innerHTML = "";
+        modules.forEach((mod: any) => {
+            const matCount = (data.materials || []).filter((m: any) => m.module_id === mod.id).length;
+            const el = document.createElement("div");
+            el.className = "module-item" + (mod.id === activeModuleId ? " active" : "");
+            el.innerHTML = `
+                <div class="module-item-main" data-id="${mod.id}">
+                    <span class="module-item-title">${mod.title}</span>
+                    <span class="module-item-count">${matCount} materi</span>
                 </div>
-                <ul class="materials-list" id="m-list-${mod.id}"></ul>
+                <div class="module-item-actions">
+                    ${mod.price > 0 ? `<span class="badge-price">Rp ${mod.price.toLocaleString("id-ID")}</span>` : ""}
+                    <button class="btn-icon edit-mod-btn" title="Edit" data-id="${mod.id}">✏️</button>
+                    <button class="btn-icon delete-mod-btn" title="Hapus" data-id="${mod.id}">🗑️</button>
+                </div>
             `;
-            container.appendChild(modEl);
-
-            const mList = modEl.querySelector(`#m-list-${mod.id}`);
-            const modMaterials = (data.materials || []).filter(
-                (m: any) => m.module_id === mod.id,
-            );
-
-            modMaterials.forEach((mat: any) => {
-                const li = document.createElement("li");
-                li.innerHTML = `
-                    <div class="mat-info">
-                        <span class="type-icon">${mat.type === "video" ? "📽️" : mat.type === "pdf" ? "📄" : "📝"}</span>
-                        <span class="mat-name">${mat.title}</span>
-                        <span class="mat-order">Urutan: ${mat.order_no}</span>
-                    </div>
-                    <div>
-                        <button class="edit-mat" data-id="${mat.id}">✏️</button>
-                        <button class="delete-mat" data-id="${mat.id}">🗑️</button>
-                    </div>
-                `;
-                if (mList) mList.appendChild(li);
+            container.appendChild(el);
+            el.querySelector(".module-item-main")!.addEventListener("click", () => {
+                activeModuleId = mod.id;
+                renderModulesList(data);
+                renderMaterialsPanel(mod.id, data);
             });
+            (el.querySelector(".edit-mod-btn") as HTMLElement).onclick = (e) => { e.stopPropagation(); openEditModule(mod); };
+            (el.querySelector(".delete-mod-btn") as HTMLElement).onclick = (e) => { e.stopPropagation(); deleteItem("modules", mod.id, `Hapus modul "${mod.title}"?`); };
         });
+    }
 
-        // Event handlers
-        document
-            .querySelectorAll(".delete-mod")
-            .forEach(
-                (btn) =>
-                    ((btn as any).onclick = () =>
-                        deleteItem(
-                            "modules",
-                            (btn as any).dataset.id,
-                            "Hapus modul dan semua materinya?",
-                        )),
-            );
-        document
-            .querySelectorAll(".delete-mat")
-            .forEach(
-                (btn) =>
-                    ((btn as any).onclick = () =>
-                        deleteItem(
-                            "materials",
-                            (btn as any).dataset.id,
-                            "Hapus materi ini?",
-                        )),
-            );
-        document.querySelectorAll(".add-mat").forEach((btn) => {
-            (btn as any).onclick = () => {
-                const f = document.getElementById(
-                    "material-form",
-                ) as HTMLFormElement;
-                f.reset();
-                (document.getElementById("mat-id") as HTMLInputElement).value =
-                    "";
-                (
-                    document.getElementById("upload-status") as HTMLElement
-                ).textContent = "";
-                removeTinyMCE();
-                const mid = document.getElementById(
-                    "mat-mod-id",
-                ) as HTMLInputElement;
-                if (mid) mid.value = (btn as any).dataset.id;
-                document
-                    .getElementById("material-modal")
-                    ?.classList.remove("hidden");
-            };
+    function showNoModuleMsg() {
+        document.getElementById("no-module-msg")!.classList.remove("hidden");
+        document.getElementById("materials-view")!.classList.add("hidden");
+    }
+
+    function renderMaterialsPanel(moduleId: string, data: any) {
+        const mod = (data.modules || []).find((m: any) => m.id === moduleId);
+        if (!mod) return showNoModuleMsg();
+        document.getElementById("no-module-msg")!.classList.add("hidden");
+        document.getElementById("materials-view")!.classList.remove("hidden");
+        document.getElementById("materials-panel-title")!.textContent = `Materi: ${mod.title}`;
+        const materials = (data.materials || [])
+            .filter((m: any) => m.module_id === moduleId)
+            .sort((a: any, b: any) => (a.order_no ?? 0) - (b.order_no ?? 0));
+        const container = document.getElementById("materials-list")!;
+        if (materials.length === 0) {
+            container.innerHTML = '<div class="empty-small">Belum ada materi. Klik "+ Materi" untuk menambah.</div>';
+            return;
+        }
+        container.innerHTML = "";
+        materials.forEach((mat: any, idx: number) => {
+            const typeIcon = mat.type === "video" ? "📽️" : mat.type === "pdf" ? "📄" : "📝";
+            const typeLabel = mat.type === "video" ? "Video" : mat.type === "pdf" ? "PDF" : "Artikel";
+            const el = document.createElement("div");
+            el.className = "material-row";
+            el.innerHTML = `
+                <div class="mat-reorder">
+                    <button class="reorder-btn move-up-btn" data-idx="${idx}" ${idx === 0 ? "disabled" : ""}>▲</button>
+                    <button class="reorder-btn move-down-btn" data-idx="${idx}" ${idx === materials.length - 1 ? "disabled" : ""}>▼</button>
+                </div>
+                <span class="mat-type-badge mat-type-${mat.type}">${typeIcon} ${typeLabel}</span>
+                <span class="mat-title">${mat.title}</span>
+                ${mat.duration ? `<span class="mat-duration">${mat.duration} mnt</span>` : ""}
+                <div class="mat-actions">
+                    <button class="btn-sm btn-outline edit-mat-btn" data-id="${mat.id}">Edit</button>
+                    <button class="btn-sm btn-danger delete-mat-btn" data-id="${mat.id}">Hapus</button>
+                </div>
+            `;
+            container.appendChild(el);
+            (el.querySelector(".edit-mat-btn") as HTMLElement).onclick = () => openEditMaterial(mat);
+            (el.querySelector(".delete-mat-btn") as HTMLElement).onclick = () => deleteItem("materials", mat.id, `Hapus materi "${mat.title}"?`);
+            (el.querySelector(".move-up-btn") as HTMLElement).onclick = () => reorderMaterial(materials, idx, idx - 1);
+            (el.querySelector(".move-down-btn") as HTMLElement).onclick = () => reorderMaterial(materials, idx, idx + 1);
         });
+    }
 
-        // Edit Module handler
-        document.querySelectorAll(".edit-mod").forEach((btn) => {
-            (btn as any).onclick = () => {
-                const modId = (btn as any).dataset.id;
-                const mod = data.modules.find((m: any) => m.id === modId);
-                if (mod) {
-                    (
-                        document.getElementById(
-                            "module-form",
-                        ) as HTMLFormElement
-                    ).reset();
-                    (
-                        document.getElementById("module-id") as HTMLInputElement
-                    ).value = mod.id;
-                    (
-                        document.getElementById("m-title") as HTMLInputElement
-                    ).value = mod.title;
-                    (
-                        document.getElementById("m-price") as HTMLInputElement
-                    ).value = mod.price || 0;
-                    (
-                        document.getElementById("m-order") as HTMLInputElement
-                    ).value = mod.order_no || 0;
-                    openM("module-modal");
-                }
-            };
-        });
-
-        // Edit Material handler
-        document.querySelectorAll(".edit-mat").forEach((btn) => {
-            (btn as any).onclick = () => {
-                const matId = (btn as any).dataset.id;
-                const mat = (data.materials || []).find(
-                    (m: any) => m.id === matId,
-                );
-                if (mat) {
-                    const f = document.getElementById(
-                        "material-form",
-                    ) as HTMLFormElement;
-                    f.reset();
-                    (
-                        document.getElementById("mat-id") as HTMLInputElement
-                    ).value = mat.id;
-                    (
-                        document.getElementById(
-                            "mat-mod-id",
-                        ) as HTMLInputElement
-                    ).value = mat.module_id;
-                    (
-                        document.getElementById("mat-title") as HTMLInputElement
-                    ).value = mat.title;
-                    (
-                        document.getElementById("mat-type") as HTMLInputElement
-                    ).value = mat.type;
-                    (
-                        document.getElementById("mat-order") as HTMLInputElement
-                    ).value = mat.order_no || 0;
-                    (
-                        document.getElementById(
-                            "mat-duration",
-                        ) as HTMLInputElement
-                    ).value = mat.duration || 0;
-
-                    const contentGroup =
-                        document.getElementById("mat-content")?.parentElement;
-                    const fileGroup =
-                        document.getElementById("file-upload-group");
-                    const matTypeSelect = document.getElementById(
-                        "mat-type",
-                    ) as HTMLSelectElement;
-                    matTypeSelect.dispatchEvent(new Event("change"));
-
-                    if (mat.type === "text") {
-                        (
-                            document.getElementById(
-                                "mat-content",
-                            ) as HTMLTextAreaElement
-                        ).value = mat.content;
-                        fileGroup?.classList.add("hidden");
-                        contentGroup?.classList.remove("hidden");
-                        setTimeout(initTinyMCE, 100);
-                    } else {
-                        fileGroup?.classList.remove("hidden");
-                        contentGroup?.classList.add("hidden");
-                        const statusEl =
-                            document.getElementById("upload-status");
-                        if (statusEl)
-                            statusEl.textContent =
-                                "File saat ini: " +
-                                (mat.content ? "Uploaded" : "Tidak ada");
-                        (
-                            document.getElementById(
-                                "mat-content",
-                            ) as HTMLTextAreaElement
-                        ).value = mat.content || "";
-                    }
-                    openM("material-modal");
-                }
-            };
-        });
+    async function reorderMaterial(materials: any[], fromIdx: number, toIdx: number) {
+        if (toIdx < 0 || toIdx >= materials.length) return;
+        const a = materials[fromIdx], b = materials[toIdx];
+        await Promise.all([
+            fetch("/api/builder/materials", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: a.id, module_id: a.module_id, title: a.title, type: a.type, content: a.content, duration: a.duration, order_no: b.order_no }) }),
+            fetch("/api/builder/materials", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: b.id, module_id: b.module_id, title: b.title, type: b.type, content: b.content, duration: b.duration, order_no: a.order_no }) }),
+        ]);
+        await refresh();
     }
 
     function renderAssignments(data: any) {
-        const container = document.getElementById("assignments-list");
-        if (!container) return;
-        container.innerHTML =
-            (data.assignments || [])
-                .map(
-                    (ass: any) => `
+        const container = document.getElementById("assignments-list")!;
+        const list: any[] = data.assignments || [];
+        if (list.length === 0) { container.innerHTML = '<div class="empty-small">Belum ada tugas.</div>'; return; }
+        container.innerHTML = list.map((ass: any) => `
             <div class="item-row">
                 <div class="item-info">
-                    <h4>${ass.title}</h4>
-                    <span class="muted">Deadline: ${ass.deadline ? new Date(ass.deadline).toLocaleString("id-ID") : "Tidak ada deadline"}</span>
+                    <span class="item-title">📋 ${ass.title}</span>
+                    <span class="hint">Deadline: ${ass.deadline ? new Date(ass.deadline).toLocaleString("id-ID") : "Tidak ada"}</span>
                 </div>
-                <button class="btn-sm danger delete-ass" data-id="${ass.id}">Hapus</button>
+                <button class="btn-sm btn-danger" onclick="deleteItemGlobal('assignments','${ass.id}','Hapus tugas ini?')">Hapus</button>
             </div>
-        `,
-                )
-                .join("") || '<div class="empty-state">Belum ada tugas.</div>';
-
-        document
-            .querySelectorAll(".delete-ass")
-            .forEach(
-                (btn) =>
-                    ((btn as any).onclick = () =>
-                        deleteItem(
-                            "assignments",
-                            (btn as any).dataset.id,
-                            "Hapus tugas ini?",
-                        )),
-            );
+        `).join("");
     }
 
     function renderExams(data: any) {
-        const container = document.getElementById("exams-list");
-        if (!container) return;
-        container.innerHTML =
-            (data.exams || [])
-                .map(
-                    (ex: any) => `
+        const container = document.getElementById("exams-list")!;
+        const list: any[] = data.exams || [];
+        if (list.length === 0) { container.innerHTML = '<div class="empty-small">Belum ada ujian.</div>'; return; }
+        container.innerHTML = list.map((ex: any) => `
             <div class="item-row">
                 <div class="item-info">
-                    <h4>${ex.title}</h4>
-                    <span class="muted">Durasi: ${ex.duration} menit</span>
+                    <span class="item-title">📝 ${ex.title}</span>
+                    <span class="hint">${ex.duration} mnt · Lulus: ${ex.passing_score || 60}%</span>
                 </div>
-                <button class="btn-sm danger delete-ex" data-id="${ex.id}">Hapus</button>
+                <div class="item-actions">
+                    <span class="status-badge ${ex.is_published ? "badge-published" : "badge-draft"}">${ex.is_published ? "✅ Aktif" : "🔒 Draft"}</span>
+                    <button class="btn-sm btn-outline toggle-pub-btn" data-id="${ex.id}" data-pub="${!!ex.is_published}">${ex.is_published ? "Nonaktifkan" : "Aktifkan"}</button>
+                    <a href="/instructor/courses/${courseId}/exams/${ex.id}" class="btn-sm btn-outline">Soal</a>
+                    <button class="btn-sm btn-outline edit-exam-btn" data-id="${ex.id}">Edit</button>
+                    <button class="btn-sm btn-danger" onclick="deleteItemGlobal('exams','${ex.id}','Hapus ujian ini?')">Hapus</button>
+                </div>
             </div>
-        `,
-                )
-                .join("") || '<div class="empty-state">Belum ada ujian.</div>';
+        `).join("");
 
-        document
-            .querySelectorAll(".delete-ex")
-            .forEach(
-                (btn) =>
-                    ((btn as any).onclick = () =>
-                        deleteItem(
-                            "exams",
-                            (btn as any).dataset.id,
-                            "Hapus ujian ini?",
-                        )),
-            );
+        container.querySelectorAll(".toggle-pub-btn").forEach((btn: any) => {
+            btn.onclick = async () => {
+                const current = btn.dataset.pub === "true";
+                await (supabase as any).from("exams").update({ is_published: !current }).eq("id", btn.dataset.id);
+                toast(!current ? "Ujian diaktifkan" : "Ujian dinonaktifkan", "success");
+                refresh();
+            };
+        });
+        container.querySelectorAll(".edit-exam-btn").forEach((btn: any) => {
+            btn.onclick = () => {
+                const ex = (cachedData?.exams || []).find((e: any) => e.id === btn.dataset.id);
+                if (!ex) return;
+                (document.getElementById("ex-id") as HTMLInputElement).value = ex.id;
+                (document.getElementById("ex-title") as HTMLInputElement).value = ex.title;
+                (document.getElementById("ex-desc") as HTMLTextAreaElement).value = ex.description || "";
+                (document.getElementById("ex-duration") as HTMLInputElement).value = ex.duration || 60;
+                (document.getElementById("ex-passing") as HTMLInputElement).value = ex.passing_score || 60;
+                (document.getElementById("ex-published") as HTMLInputElement).checked = !!ex.is_published;
+                document.getElementById("exam-modal-title")!.textContent = "Edit Ujian";
+                openModal("exam-modal");
+            };
+        });
     }
 
-    async function refresh() {
-        const data = await fetchData();
-        renderBuilder(data);
-        document.getElementById("loading")!.style.display = "none";
-        document.getElementById("builder-content")!.classList.remove("hidden");
+    async function deleteItem(table: string, id: string, msg: string) {
+        const ok = await showConfirm(msg);
+        if (!ok) return;
+        const res = await fetch(`/api/builder/${table}/${id}`, { method: "DELETE" });
+        if (!res.ok) { let e = "Gagal menghapus"; try { const r = await res.json(); e = r.error || e; } catch {} toast(e, "error"); return; }
+        toast("Berhasil dihapus", "success");
+        if (table === "modules" && id === activeModuleId) activeModuleId = null;
+        refresh();
+    }
+    (window as any).deleteItemGlobal = deleteItem;
+
+    function openModal(id: string) { document.getElementById(id)?.classList.remove("hidden"); }
+    function closeAllModals() { document.querySelectorAll(".modal").forEach((m) => m.classList.add("hidden")); removeTinyMCE(); }
+
+    function openAddModule() {
+        const nextOrder = (cachedData?.modules?.length || 0) + 1;
+        (document.getElementById("module-form") as HTMLFormElement).reset();
+        (document.getElementById("module-id") as HTMLInputElement).value = "";
+        (document.getElementById("m-order") as HTMLInputElement).value = String(nextOrder);
+        document.getElementById("module-modal-title")!.textContent = "Tambah Modul";
+        openModal("module-modal");
+    }
+    function openEditModule(mod: any) {
+        (document.getElementById("module-form") as HTMLFormElement).reset();
+        (document.getElementById("module-id") as HTMLInputElement).value = mod.id;
+        (document.getElementById("m-title") as HTMLInputElement).value = mod.title;
+        (document.getElementById("m-price") as HTMLInputElement).value = mod.price ?? 0;
+        (document.getElementById("m-order") as HTMLInputElement).value = mod.order_no ?? 1;
+        document.getElementById("module-modal-title")!.textContent = "Edit Modul";
+        openModal("module-modal");
     }
 
-    // Tab Logic
+    document.getElementById("module-form")!.onsubmit = async (e) => {
+        e.preventDefault();
+        const id = (document.getElementById("module-id") as HTMLInputElement).value;
+        const payload: any = {
+            class_id: courseId,
+            title: (document.getElementById("m-title") as HTMLInputElement).value,
+            price: parseFloat((document.getElementById("m-price") as HTMLInputElement).value) || 0,
+            order_no: parseInt((document.getElementById("m-order") as HTMLInputElement).value) || 1,
+        };
+        if (id) payload.id = id;
+        const res = await fetch("/api/builder/modules", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!res.ok) { let e = "Gagal menyimpan modul"; try { const r = await res.json(); e = r.error || e; } catch {} toast(e, "error"); return; }
+        toast(id ? "Modul diperbarui" : "Modul ditambahkan", "success");
+        closeAllModals();
+        await refresh();
+        if (!id && cachedData?.modules?.length) { const m = cachedData.modules.at(-1); if (m) { activeModuleId = m.id; renderMaterialsPanel(m.id, cachedData); } }
+    };
+
+    const matTypeSelect = document.getElementById("mat-type") as HTMLInputElement;
+    const fileGroup = document.getElementById("file-upload-group")!;
+    const textGroup = document.getElementById("text-content-group")!;
+    const fileInput = document.getElementById("mat-file") as HTMLInputElement;
+    const fileDropZone = document.getElementById("file-drop-zone")!;
+    const filePlaceholder = document.getElementById("file-placeholder")!;
+    const fileSelectedDiv = document.getElementById("file-selected")!;
+    const fileNameDisplay = document.getElementById("file-name-display")!;
+    const existingFileInfo = document.getElementById("existing-file-info")!;
+
+    function setMatType(type: string) {
+        matTypeSelect.value = type;
+        document.querySelectorAll(".type-btn").forEach((b) => b.classList.remove("active"));
+        document.querySelector(`.type-btn[data-type="${type}"]`)?.classList.add("active");
+        if (type === "text") { fileGroup.classList.add("hidden"); textGroup.classList.remove("hidden"); setTimeout(initTinyMCE, 100); }
+        else {
+            fileGroup.classList.remove("hidden"); textGroup.classList.add("hidden"); removeTinyMCE();
+            const fl = document.getElementById("file-label")!, fh = document.getElementById("file-hint")!;
+            if (type === "video") { fl.textContent = "Upload Video"; fileInput.accept = "video/*"; fh.textContent = "MP4, WebM, MOV — maks 500MB"; }
+            else { fl.textContent = "Upload PDF"; fileInput.accept = ".pdf"; fh.textContent = "PDF — maks 50MB"; }
+        }
+    }
+
+    document.querySelectorAll(".type-btn").forEach((btn) => { (btn as HTMLElement).onclick = () => setMatType((btn as any).dataset.type); });
+    fileDropZone.onclick = () => fileInput.click();
+    fileInput.onchange = () => {
+        const file = fileInput.files?.[0];
+        if (!file) return;
+        fileNameDisplay.textContent = `${file.name} (${(file.size / 1024 / 1024).toFixed(1)} MB)`;
+        filePlaceholder.classList.add("hidden"); fileSelectedDiv.classList.remove("hidden");
+    };
+    document.getElementById("file-clear-btn")!.onclick = (e) => { e.stopPropagation(); fileInput.value = ""; fileSelectedDiv.classList.add("hidden"); filePlaceholder.classList.remove("hidden"); };
+    ["dragover","dragenter"].forEach((evt) => fileDropZone.addEventListener(evt, (e) => { e.preventDefault(); fileDropZone.classList.add("drag-over"); }));
+    ["dragleave","drop"].forEach((evt) => fileDropZone.addEventListener(evt, (e) => { e.preventDefault(); fileDropZone.classList.remove("drag-over"); }));
+    fileDropZone.addEventListener("drop", (e) => {
+        const file = e.dataTransfer?.files[0];
+        if (file) { const dt = new DataTransfer(); dt.items.add(file); fileInput.files = dt.files; fileNameDisplay.textContent = `${file.name} (${(file.size/1024/1024).toFixed(1)} MB)`; filePlaceholder.classList.add("hidden"); fileSelectedDiv.classList.remove("hidden"); }
+    });
+
+    function openAddMaterial(moduleId: string) {
+        (document.getElementById("material-form") as HTMLFormElement).reset();
+        (document.getElementById("mat-id") as HTMLInputElement).value = "";
+        (document.getElementById("mat-mod-id") as HTMLInputElement).value = moduleId;
+        (document.getElementById("mat-existing-content") as HTMLInputElement).value = "";
+        existingFileInfo.classList.add("hidden"); fileSelectedDiv.classList.add("hidden"); filePlaceholder.classList.remove("hidden");
+        document.getElementById("upload-progress")!.classList.add("hidden");
+        document.getElementById("material-modal-title")!.textContent = "Tambah Materi";
+        setMatType("video");
+        openModal("material-modal");
+    }
+    function openEditMaterial(mat: any) {
+        (document.getElementById("material-form") as HTMLFormElement).reset();
+        (document.getElementById("mat-id") as HTMLInputElement).value = mat.id;
+        (document.getElementById("mat-mod-id") as HTMLInputElement).value = mat.module_id;
+        (document.getElementById("mat-title") as HTMLInputElement).value = mat.title;
+        (document.getElementById("mat-duration") as HTMLInputElement).value = mat.duration || 0;
+        (document.getElementById("mat-existing-content") as HTMLInputElement).value = mat.content || "";
+        fileSelectedDiv.classList.add("hidden"); filePlaceholder.classList.remove("hidden");
+        document.getElementById("upload-progress")!.classList.add("hidden");
+        document.getElementById("material-modal-title")!.textContent = "Edit Materi";
+        setMatType(mat.type);
+        if (mat.type === "text") {
+            setTimeout(() => {
+                if ((window as any).tinymce?.get("mat-content")) (window as any).tinymce.get("mat-content").setContent(mat.content || "");
+                else (document.getElementById("mat-content") as HTMLTextAreaElement).value = mat.content || "";
+            }, 150);
+        } else if (mat.content) { existingFileInfo.classList.remove("hidden"); }
+        openModal("material-modal");
+    }
+
+    document.getElementById("material-form")!.onsubmit = async (e) => {
+        e.preventDefault();
+        const type = matTypeSelect.value;
+        const submitBtn = document.getElementById("mat-submit-btn") as HTMLButtonElement;
+        const progressBar = document.getElementById("upload-progress")!;
+        const progressFill = document.getElementById("progress-fill") as HTMLElement;
+        const progressText = document.getElementById("progress-text")!;
+        submitBtn.disabled = true; submitBtn.textContent = "Menyimpan...";
+        try {
+            let content = (document.getElementById("mat-existing-content") as HTMLInputElement).value;
+            if (type === "text") {
+                const tmc = (window as any).tinymce?.get("mat-content");
+                content = tmc ? tmc.getContent() : (document.getElementById("mat-content") as HTMLTextAreaElement).value;
+            } else if (fileInput.files?.length) {
+                const file = fileInput.files[0];
+                const maxSize = type === "video" ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
+                if (file.size > maxSize) throw new Error(`File melebihi batas ukuran (${type === "video" ? "500" : "50"}MB)`);
+                progressBar.classList.remove("hidden"); progressFill.style.width = "10%"; progressText.textContent = `Mengupload ${file.name}...`;
+                const uploadForm = new FormData();
+                uploadForm.append("file", file); uploadForm.append("courseId", courseId);
+                progressFill.style.width = "40%";
+                const uploadRes = await fetch("/api/builder/upload", { method: "POST", body: uploadForm });
+                progressFill.style.width = "90%";
+                let uploadResult: any = {};
+                try { uploadResult = await uploadRes.json(); } catch { throw new Error(`Upload gagal (status ${uploadRes.status})`); }
+                if (!uploadRes.ok) throw new Error(uploadResult.error || "Upload gagal");
+                content = uploadResult.publicUrl; progressFill.style.width = "100%"; progressText.textContent = "Upload selesai ✅";
+            }
+            const matId = (document.getElementById("mat-id") as HTMLInputElement).value;
+            const moduleId = (document.getElementById("mat-mod-id") as HTMLInputElement).value;
+            const existingMaterials = (cachedData?.materials || []).filter((m: any) => m.module_id === moduleId);
+            const payload: any = {
+                module_id: moduleId,
+                title: (document.getElementById("mat-title") as HTMLInputElement).value,
+                type, content,
+                duration: parseInt((document.getElementById("mat-duration") as HTMLInputElement).value) || 0,
+            };
+            if (matId) payload.id = matId;
+            else payload.order_no = existingMaterials.length + 1;
+            const res = await fetch("/api/builder/materials", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+            if (!res.ok) { let e = "Gagal menyimpan materi"; try { const r = await res.json(); e = r.error || e; } catch {} throw new Error(e); }
+            toast(matId ? "Materi diperbarui" : "Materi ditambahkan", "success");
+            closeAllModals();
+            await refresh();
+        } catch (err: any) {
+            toast(err.message || "Terjadi kesalahan", "error");
+        } finally {
+            submitBtn.disabled = false; submitBtn.textContent = "Simpan Materi";
+        }
+    };
+
+    document.getElementById("assignment-form")!.onsubmit = async (e) => {
+        e.preventDefault();
+        const payload = { class_id: courseId, title: (document.getElementById("ass-title") as HTMLInputElement).value, description: (document.getElementById("ass-desc") as HTMLTextAreaElement).value || null, deadline: (document.getElementById("ass-deadline") as HTMLInputElement).value || null };
+        const res = await fetch("/api/builder/assignments", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!res.ok) { toast("Gagal menyimpan tugas", "error"); return; }
+        toast("Tugas ditambahkan", "success"); closeAllModals(); refresh();
+    };
+
+    document.getElementById("exam-form")!.onsubmit = async (e) => {
+        e.preventDefault();
+        const id = (document.getElementById("ex-id") as HTMLInputElement).value;
+        const payload: any = { class_id: courseId, title: (document.getElementById("ex-title") as HTMLInputElement).value, description: (document.getElementById("ex-desc") as HTMLTextAreaElement).value || null, duration: parseInt((document.getElementById("ex-duration") as HTMLInputElement).value), passing_score: parseInt((document.getElementById("ex-passing") as HTMLInputElement).value) || 60, is_published: (document.getElementById("ex-published") as HTMLInputElement).checked };
+        if (id) payload.id = id;
+        const res = await fetch("/api/builder/exams", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        if (!res.ok) { toast("Gagal menyimpan ujian", "error"); return; }
+        toast(id ? "Ujian diperbarui" : "Ujian ditambahkan", "success"); closeAllModals(); refresh();
+    };
+
+    function initTinyMCE() {
+        if ((window as any).tinymce?.get("mat-content")) return;
+        (window as any).tinymce?.init({ selector: "#mat-content", plugins: "advlist autolink lists link image charmap preview searchreplace visualblocks code fullscreen insertdatetime media table help wordcount", toolbar: "undo redo | formatselect | bold italic | alignleft aligncenter alignright | bullist numlist | removeformat | help", height: 280, menubar: false });
+    }
+    function removeTinyMCE() { (window as any).tinymce?.get("mat-content")?.remove(); }
+
+    document.getElementById("add-module-btn")!.onclick = openAddModule;
+    document.getElementById("add-material-btn")!.onclick = () => { if (activeModuleId) openAddMaterial(activeModuleId); };
+    document.getElementById("add-assignment-btn")!.onclick = () => { (document.getElementById("assignment-form") as HTMLFormElement).reset(); openModal("assignment-modal"); };
+    document.getElementById("add-exam-btn")!.onclick = () => { (document.getElementById("exam-form") as HTMLFormElement).reset(); (document.getElementById("ex-id") as HTMLInputElement).value = ""; document.getElementById("exam-modal-title")!.textContent = "Tambah Ujian"; openModal("exam-modal"); };
+    document.querySelectorAll(".closeModal").forEach((btn) => { (btn as HTMLElement).onclick = closeAllModals; });
+    document.querySelectorAll(".modal").forEach((modal) => { modal.addEventListener("click", (e) => { if (e.target === modal) closeAllModals(); }); });
     document.querySelectorAll(".tab-btn").forEach((btn) => {
-        btn.onclick = () => {
-            document
-                .querySelectorAll(".tab-btn")
-                .forEach((b) => b.classList.remove("active"));
-            document
-                .querySelectorAll(".tab-content")
-                .forEach((c) => c.classList.remove("active"));
+        (btn as HTMLElement).onclick = () => {
+            document.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+            document.querySelectorAll(".tab-content").forEach((c) => c.classList.remove("active"));
             btn.classList.add("active");
-            document
-                .getElementById(`tab-${(btn as any).dataset.tab}`)
-                ?.classList.add("active");
+            document.getElementById(`tab-${(btn as any).dataset.tab}`)?.classList.add("active");
         };
     });
 
-    // Modals
-    const openM = (id: string) =>
-        document.getElementById(id)?.classList.remove("hidden");
-    const closeM = () => {
-        document
-            .querySelectorAll(".modal")
-            .forEach((m) => m.classList.add("hidden"));
-        if (typeof removeTinyMCE === "function") removeTinyMCE();
-    };
-
-    document.getElementById("add-module-btn")!.onclick = () => {
-        (document.getElementById("module-form") as HTMLFormElement).reset();
-        (document.getElementById("module-id") as HTMLInputElement).value = "";
-        openM("module-modal");
-    };
-    document.getElementById("add-assignment-btn")!.onclick = () =>
-        openM("assignment-modal");
-    document.getElementById("add-exam-btn")!.onclick = () =>
-        openM("exam-modal");
-    document
-        .querySelectorAll(".closeModal")
-        .forEach((b) => ((b as HTMLElement).onclick = closeM));
-
-    // Forms
-    const handleS = async (
-        id: string,
-        table: string,
-        getV: () => any,
-        mid: string,
-    ) => {
-        const f = document.getElementById(id) as HTMLFormElement;
-        f.onsubmit = async (e) => {
-            e.preventDefault();
-            const values = getV();
-            if (!values.id) delete values.id;
-
-            const res = await fetch(`/api/builder/${table}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(values),
-            });
-            if (res.ok) {
-                closeM();
-                f.reset();
-                refresh();
-            } else {
-                const result = await res.json();
-                alert("Gagal menyimpan: " + (result.error || "Unknown error"));
-            }
-        };
-    };
-
-    handleS(
-        "module-form",
-        "modules",
-        () => ({
-            class_id: courseId,
-            id: (document.getElementById("module-id") as HTMLInputElement)
-                .value,
-            title: (document.getElementById("m-title") as HTMLInputElement)
-                .value,
-            price:
-                parseFloat(
-                    (document.getElementById("m-price") as HTMLInputElement)
-                        .value,
-                ) || 0,
-            order_no: (document.getElementById("m-order") as HTMLInputElement)
-                .value,
-        }),
-        "module-modal",
-    );
-
-    const materialForm = document.getElementById(
-        "material-form",
-    ) as HTMLFormElement;
-    const matTypeSelect = document.getElementById(
-        "mat-type",
-    ) as HTMLSelectElement;
-    const fileGroup = document.getElementById("file-upload-group");
-    const contentGroup = document.getElementById("mat-content")?.parentElement;
-
-    // TinyMCE Helpers
-    const initTinyMCE = () => {
-        if (tinymce.get("mat-content")) return;
-        tinymce.init({
-            selector: "#mat-content",
-            plugins:
-                "advlist autolink lists link image charmap preview anchor searchreplace visualblocks code fullscreen insertdatetime media table help wordcount",
-            toolbar:
-                "undo redo | formatselect | bold italic backcolor | alignleft aligncenter alignright alignjustify | bullist numlist outdent indent | removeformat | help",
-            height: 300,
-            setup: function (editor: any) {
-                editor.on("change", function () {
-                    editor.save();
-                });
-            },
-        });
-    };
-
-    const removeTinyMCE = () => {
-        if (tinymce.get("mat-content")) {
-            tinymce.get("mat-content")!.remove();
-        }
-    };
-
-    matTypeSelect.onchange = () => {
-        const type = matTypeSelect.value;
-        if (type === "text") {
-            fileGroup?.classList.add("hidden");
-            contentGroup?.classList.remove("hidden");
-            initTinyMCE();
-        } else {
-            fileGroup?.classList.remove("hidden");
-            contentGroup?.classList.add("hidden");
-            const fileInput = document.getElementById(
-                "mat-file",
-            ) as HTMLInputElement;
-            if (type === "video") fileInput.accept = "video/*";
-            else if (type === "pdf") fileInput.accept = ".pdf";
-            removeTinyMCE();
-        }
-    };
-
-    materialForm.onsubmit = async (e) => {
-        e.preventDefault();
-        const type = matTypeSelect.value;
-        const fileInput = document.getElementById(
-            "mat-file",
-        ) as HTMLInputElement;
-        const statusEl = document.getElementById("upload-status");
-
-        let content = "";
-        // Sync content from TinyMCE if type is text
-        if (type === "text") {
-            if (tinymce.get("mat-content")) {
-                content = tinymce.get("mat-content")!.getContent();
-            } else {
-                content = (
-                    document.getElementById(
-                        "mat-content",
-                    ) as HTMLTextAreaElement
-                ).value;
-            }
-        } else {
-            content = (
-                document.getElementById("mat-content") as HTMLTextAreaElement
-            ).value;
-        }
-
-        try {
-            if (type !== "text" && fileInput.files?.length) {
-                const file = fileInput.files[0];
-                const fileExt = file.name.toLowerCase().split(".").pop() || "unknown";
-
-                // Validate type
-                const validVideoExts = ["mp4","webm","ogg","mov","avi","mkv"];
-                const validVideoTypes = ["video/mp4","video/webm","video/ogg","video/quicktime"];
-                if (type === "video" && !validVideoTypes.includes(file.type) && !validVideoExts.includes(fileExt)) {
-                    throw new Error(`Format video tidak valid. Didukung: MP4, WebM, OGG, MOV. File: ${file.type || fileExt}`);
-                }
-                if (type === "pdf" && file.type !== "application/pdf" && fileExt !== "pdf") {
-                    throw new Error(`Format bukan PDF. File: ${file.type || fileExt}`);
-                }
-
-                // Validate size
-                const maxSize = type === "video" ? 500 * 1024 * 1024 : 50 * 1024 * 1024;
-                if (file.size > maxSize) {
-                    throw new Error(`Ukuran file melebihi batas ${type === "video" ? "500" : "50"}MB. File: ${(file.size/1024/1024).toFixed(2)}MB`);
-                }
-
-                if (statusEl) statusEl.textContent = `Mengupload ${type === "video" ? "video" : "PDF"} (${(file.size/1024/1024).toFixed(1)}MB)...`;
-
-                const uploadForm = new FormData();
-                uploadForm.append("file", file);
-                uploadForm.append("courseId", courseId);
-
-                const uploadRes = await fetch("/api/builder/upload", {
-                    method: "POST",
-                    body: uploadForm,
-                });
-                let uploadResult: any = {};
-                try {
-                    uploadResult = await uploadRes.json();
-                } catch {
-                    throw new Error(`Upload gagal (status ${uploadRes.status}): server tidak mengembalikan respons yang valid`);
-                }
-                if (!uploadRes.ok) throw new Error(uploadResult.error || "Upload gagal");
-
-                content = uploadResult.publicUrl;
-                if (statusEl) statusEl.textContent = "✅ File berhasil diupload";
-            }
-
-            const matId = (
-                document.getElementById("mat-id") as HTMLInputElement
-            ).value;
-            const matPayload: any = {
-                module_id: (
-                    document.getElementById("mat-mod-id") as HTMLInputElement
-                ).value,
-                title: (
-                    document.getElementById("mat-title") as HTMLInputElement
-                ).value,
-                type: type,
-                content: content,
-                duration: parseInt(
-                    (
-                        document.getElementById(
-                            "mat-duration",
-                        ) as HTMLInputElement
-                    ).value || "0",
-                ),
-                order_no: parseInt(
-                    (document.getElementById("mat-order") as HTMLInputElement)
-                        .value || "0",
-                ),
-            };
-
-            if (matId && matId.trim() !== "") {
-                matPayload.id = matId;
-            }
-
-            const matRes = await fetch(`/api/builder/materials`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(matPayload),
-            });
-            if (!matRes.ok) {
-                const matResult = await matRes.json();
-                throw new Error(matResult.error || "Gagal menyimpan material");
-            }
-
-            closeM();
-            materialForm.reset();
-            if (statusEl) statusEl.textContent = "";
-            refresh();
-        } catch (err: any) {
-            console.error(err);
-            alert("Gagal: " + err.message);
-            if (statusEl) statusEl.textContent = "Error: " + err.message;
-        }
-    };
-
-    handleS(
-        "assignment-form",
-        "assignments",
-        () => ({
-            class_id: courseId,
-            title: (document.getElementById("ass-title") as HTMLInputElement)
-                .value,
-            description: (
-                document.getElementById("ass-desc") as HTMLTextAreaElement
-            ).value,
-            deadline:
-                (document.getElementById("ass-deadline") as HTMLInputElement)
-                    .value || null,
-        }),
-        "assignment-modal",
-    );
-
-    handleS(
-        "exam-form",
-        "exams",
-        () => ({
-            class_id: courseId,
-            title: (document.getElementById("ex-title") as HTMLInputElement)
-                .value,
-            duration: parseInt(
-                (document.getElementById("ex-duration") as HTMLInputElement)
-                    .value,
-            ),
-        }),
-        "exam-modal",
-    );
-
-    async function deleteItem(table: string, id: string, msg: string) {
-        if (confirm(msg)) {
-            const res = await fetch(`/api/builder/${table}/${id}`, { method: "DELETE" });
-            if (!res.ok) {
-                const result = await res.json();
-                alert("Gagal hapus: " + (result.error || "Unknown error"));
-                return;
-            }
-            refresh();
-        }
-    }
-
-    // Initialize
-    async function init(retries = 4) {
-        const result = await checkOwnership();
-        if (result.course) {
-            refresh();
-        } else if (result.notFound && retries > 0) {
-            // Course might not be available yet (race condition after creation) — retry
-            setTimeout(() => init(retries - 1), 800);
-        } else {
-            // Wrong owner or not found after all retries
-            document.getElementById("loading")!.style.display = "none";
-            document.getElementById("access-denied")!.classList.remove("hidden");
-        }
-    }
-
-    init();
+    refresh(false);
 </script>
 
 <style>
-    .builder-tabs {
-        display: flex;
-        gap: 1rem;
-        margin-bottom: 2rem;
-        border-bottom: 1px solid #e2e8f0;
-    }
-    .badge-price {
-        font-size: 0.8rem;
-        background: #dcfce7;
-        color: #166534;
-        padding: 0.2rem 0.5rem;
-        border-radius: 4px;
-        display: inline-block;
-        margin-top: 0.2rem;
-    }
-    .tab-btn {
-        background: none;
-        border: none;
-        padding: 0.75rem 1.5rem;
-        font-weight: 600;
-        color: #64748b;
-        cursor: pointer;
-        border-bottom: 2px solid transparent;
-    }
-    .tab-btn.active {
-        color: var(--primary-color);
-        border-bottom-color: var(--primary-color);
-    }
-    .tab-content {
-        display: none;
-    }
-    .tab-content.active {
-        display: block;
-    }
+    #toast-container { position: fixed; top: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: 0.5rem; }
+    .toast { background: #1e293b; color: white; padding: 0.75rem 1.25rem; border-radius: 0.5rem; font-size: 0.875rem; box-shadow: 0 4px 12px rgba(0,0,0,0.15); transform: translateX(120%); transition: transform 0.3s ease; max-width: 320px; }
+    .toast.show { transform: translateX(0); }
+    .toast-success { background: #166534; border-left: 4px solid #22c55e; }
+    .toast-error { background: #7f1d1d; border-left: 4px solid #ef4444; }
+    .toast-info { background: #1e3a5f; border-left: 4px solid #3b82f6; }
 
-    .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1.5rem;
-    }
-    .items-list {
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 0.5rem;
-    }
-    .item-row {
-        padding: 1rem 1.5rem;
-        border-bottom: 1px solid #f1f5f9;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .item-row:last-child {
-        border-bottom: none;
-    }
-    .edit-mat,
-    .delete-mat {
-        border: none;
-        background: none;
-        cursor: pointer;
-        padding: 0.2rem;
-    }
-    .edit-mat {
-        margin-right: 0.5rem;
-    }
-    .danger {
-        color: #ef4444;
-        cursor: pointer;
-        background: none;
-        border: none;
-    }
+    #confirm-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 9998; display: flex; align-items: center; justify-content: center; }
+    .confirm-box { background: white; padding: 1.5rem 2rem; border-radius: 0.75rem; box-shadow: 0 20px 40px rgba(0,0,0,0.2); max-width: 360px; width: 90%; text-align: center; }
+    .confirm-box p { margin: 0 0 1.25rem; font-size: 0.95rem; color: #1e293b; }
+    .confirm-actions { display: flex; gap: 0.75rem; justify-content: center; }
+    .btn-danger { background: #ef4444; color: white; border: none; cursor: pointer; padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 600; }
 
-    .instructor-container {
-        display: flex;
-        min-height: 100vh;
-        margin: -2rem;
-    }
-    .instructor-sidebar {
-        width: 240px;
-        background: #059669;
-        color: white;
-    }
-    .instructor-sidebar .brand {
-        padding: 2rem;
-        font-size: 1.25rem;
-        font-weight: 800;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    .instructor-sidebar nav a {
-        display: block;
-        padding: 1rem 2rem;
-        color: rgba(255, 255, 255, 0.8);
-        text-decoration: none;
-    }
-    .instructor-sidebar nav a:hover,
-    .instructor-sidebar nav a.active {
-        background: rgba(0, 0, 0, 0.1);
-        color: white;
-    }
-    .instructor-sidebar .footer {
-        margin-top: auto;
-        padding: 1rem 2rem;
-        border-top: 1px solid rgba(255, 255, 255, 0.2);
-    }
-    .instructor-sidebar .footer a {
-        color: rgba(255, 255, 255, 0.7);
-        text-decoration: none;
-        font-size: 0.875rem;
-    }
+    .admin-container { display: flex; min-height: 100vh; margin: -2rem; }
+    .admin-sidebar { width: 220px; background: #1e293b; color: white; display: flex; flex-direction: column; }
+    .admin-sidebar .brand { padding: 1.5rem; font-size: 1.1rem; font-weight: 800; border-bottom: 1px solid #334155; }
+    .admin-sidebar nav { flex: 1; padding: 0.75rem 0; }
+    .admin-sidebar nav a { display: block; padding: 0.75rem 1.5rem; color: #94a3b8; text-decoration: none; font-size: 0.9rem; transition: all 0.15s; }
+    .admin-sidebar nav a:hover, .admin-sidebar nav a.active { background: #334155; color: white; }
+    .nav-divider { height: 1px; background: #334155; margin: 0.75rem 1.25rem; }
+    .sidebar-footer { padding: 1rem 1.5rem; border-top: 1px solid #334155; }
+    .sidebar-footer a { color: #64748b; text-decoration: none; font-size: 0.8rem; }
+    .admin-main { flex: 1; padding: 2rem 2.5rem; background: #f8fafc; overflow-y: auto; }
+    .admin-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
+    .admin-header h1 { margin: 0 0 0.25rem; font-size: 1.5rem; }
+    .muted { color: #6b7280; margin: 0; font-size: 0.9rem; }
+    .state-message { text-align: center; padding: 3rem; color: #6b7280; }
 
-    .instructor-main {
-        flex: 1;
-        padding: 2rem 3rem;
-        background: #f8fafc;
-    }
-    .instructor-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 2rem;
-    }
+    .builder-tabs { display: flex; gap: 0.5rem; margin-bottom: 0; border-bottom: 2px solid #e2e8f0; }
+    .tab-btn { background: none; border: none; padding: 0.75rem 1.25rem; font-weight: 600; font-size: 0.9rem; color: #64748b; cursor: pointer; border-bottom: 3px solid transparent; margin-bottom: -2px; transition: all 0.15s; }
+    .tab-btn.active { color: #f59e0b; border-bottom-color: #f59e0b; }
+    .tab-content { display: none; padding-top: 1.5rem; }
+    .tab-content.active { display: block; }
+    .tab-toolbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+    .tab-toolbar h2 { margin: 0; font-size: 1.1rem; }
 
-    .module-card {
-        background: white;
-        border: 1px solid #e2e8f0;
-        border-radius: 0.5rem;
-        margin-bottom: 1rem;
-    }
-    .module-header {
-        padding: 1rem;
-        background: #f8fafc;
-        display: flex;
-        justify-content: space-between;
-        border-bottom: 1px solid #e2e8f0;
-    }
-    .materials-list {
-        list-style: none;
-        padding: 0;
-        margin: 0;
-    }
-    .materials-list li {
-        padding: 0.75rem 1rem;
-        border-bottom: 1px solid #f1f5f9;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-    }
-    .materials-list li:last-child {
-        border-bottom: none;
-    }
-    .mat-info {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-    }
-    .mat-order {
-        font-size: 0.75rem;
-        background: #f1f5f9;
-        padding: 0.1rem 0.4rem;
-        border-radius: 4px;
-        color: #64748b;
-    }
+    .split-panel { display: grid; grid-template-columns: 280px 1fr; gap: 1.5rem; min-height: 480px; }
+    .modules-panel, .materials-panel { background: white; border: 1px solid #e2e8f0; border-radius: 0.75rem; overflow: hidden; display: flex; flex-direction: column; }
+    .panel-header { display: flex; justify-content: space-between; align-items: center; padding: 0.875rem 1rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+    .panel-title { font-weight: 700; font-size: 0.875rem; color: #374151; text-transform: uppercase; letter-spacing: 0.05em; }
+    .empty-center { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 2rem; text-align: center; color: #9ca3af; }
+    .empty-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+    .empty-small { padding: 1.5rem; text-align: center; color: #9ca3af; font-size: 0.875rem; }
 
-    .modal {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0, 0, 0, 0.5);
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        z-index: 100;
-    }
-    .modal-content {
-        background: white;
-        padding: 2rem;
-        border-radius: 0.5rem;
-        width: 400px;
-        max-height: 90vh;
-        overflow-y: auto;
-    }
-    .hidden {
-        display: none !important;
-    }
-    .form-group {
-        margin-bottom: 1rem;
-    }
-    .form-group label {
-        display: block;
-        margin-bottom: 0.5rem;
-        font-weight: 500;
-    }
-    .form-group input,
-    .form-group select,
-    .form-group textarea {
-        width: 100%;
-        padding: 0.5rem;
-        border: 1px solid #ccc;
-        border-radius: 0.25rem;
-    }
-    .modal-actions {
-        display: flex;
-        justify-content: flex-end;
-        gap: 1rem;
-        margin-top: 1rem;
-    }
+    .module-item { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; cursor: pointer; transition: background 0.1s; }
+    .module-item:hover { background: #f8fafc; }
+    .module-item.active { background: #fffbeb; border-left: 3px solid #f59e0b; }
+    .module-item-main { flex: 1; min-width: 0; cursor: pointer; }
+    .module-item-title { display: block; font-weight: 600; font-size: 0.875rem; color: #1e293b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .module-item-count { font-size: 0.75rem; color: #94a3b8; }
+    .module-item-actions { display: flex; align-items: center; gap: 0.25rem; opacity: 0; transition: opacity 0.15s; }
+    .module-item:hover .module-item-actions { opacity: 1; }
+    .btn-icon { background: none; border: none; cursor: pointer; padding: 0.2rem 0.3rem; font-size: 0.85rem; border-radius: 4px; }
+    .btn-icon:hover { background: #f1f5f9; }
+    .badge-price { font-size: 0.7rem; background: #dcfce7; color: #166534; padding: 0.1rem 0.4rem; border-radius: 4px; }
 
-    /* Improved Modal Styles */
-    .modal-content {
-        background: white;
-        border-radius: 0.75rem;
-        width: 700px;
-        max-width: 95vw;
-        max-height: 90vh;
-        display: flex;
-        flex-direction: column;
-        padding: 0;
-        box-shadow:
-            0 20px 25px -5px rgba(0, 0, 0, 0.1),
-            0 10px 10px -5px rgba(0, 0, 0, 0.04);
-        overflow: hidden;
-    }
-    .modal-header {
-        padding: 1.25rem 1.5rem;
-        border-bottom: 1px solid #e2e8f0;
-        background: #fff;
-    }
-    .modal-header h3 {
-        margin: 0;
-        font-size: 1.25rem;
-        color: #1e293b;
-    }
-    .modal-body {
-        padding: 1.5rem;
-        overflow-y: auto;
-        flex: 1;
-    }
-    .modal-footer {
-        padding: 1rem 1.5rem;
-        border-top: 1px solid #e2e8f0;
-        background: #f8fafc;
-        display: flex;
-        justify-content: flex-end;
-        gap: 1rem;
-    }
-    /* Legacy override for other modals if they use old structure inside new container */
-    .modal-content > h3 {
-        margin: 1.5rem 1.5rem 0.5rem;
-    }
-    .modal-content > form {
-        display: flex;
-        flex-direction: column;
-        flex: 1;
-        overflow: hidden; /* For new structure */
-    }
-    /* Handle legacy modals that just contain form elements directly */
-    .modal-content > form > .form-group:first-child {
-        margin-top: 1rem;
-        padding: 0 1.5rem;
-    }
-    .modal-content > form > .form-group {
-        padding: 0 1.5rem;
-    }
+    .material-row { display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem 1rem; border-bottom: 1px solid #f1f5f9; }
+    .mat-reorder { display: flex; flex-direction: column; gap: 1px; }
+    .reorder-btn { background: none; border: 1px solid #e2e8f0; border-radius: 3px; cursor: pointer; padding: 0 0.2rem; font-size: 0.6rem; line-height: 1.4; color: #9ca3af; }
+    .reorder-btn:hover:not(:disabled) { background: #f1f5f9; color: #374151; }
+    .reorder-btn:disabled { opacity: 0.3; cursor: default; }
+    .mat-type-badge { font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+    .mat-type-video { background: #dbeafe; color: #1e40af; }
+    .mat-type-pdf { background: #fee2e2; color: #991b1b; }
+    .mat-type-text { background: #d1fae5; color: #065f46; }
+    .mat-title { flex: 1; font-size: 0.875rem; font-weight: 500; color: #1e293b; }
+    .mat-duration { font-size: 0.75rem; color: #94a3b8; white-space: nowrap; }
+    .mat-actions { display: flex; gap: 0.5rem; flex-shrink: 0; }
 
-    .state-message {
-        text-align: center;
-        padding: 3rem;
-    }
+    .items-list { background: white; border: 1px solid #e2e8f0; border-radius: 0.75rem; overflow: hidden; }
+    .item-row { padding: 1rem 1.25rem; border-bottom: 1px solid #f1f5f9; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+    .item-row:last-child { border-bottom: none; }
+    .item-info { display: flex; flex-direction: column; gap: 0.2rem; }
+    .item-title { font-weight: 600; font-size: 0.9rem; }
+    .item-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .status-badge { font-size: 0.75rem; font-weight: 700; padding: 0.2rem 0.6rem; border-radius: 999px; }
+    .badge-published { background: #dcfce7; color: #166534; }
+    .badge-draft { background: #fef3c7; color: #92400e; }
 
-    .empty-state {
-        text-align: center;
-        padding: 2rem;
-        color: #6b7280;
-    }
+    .btn { padding: 0.5rem 1rem; border-radius: 0.375rem; font-weight: 600; cursor: pointer; border: none; text-decoration: none; display: inline-block; font-size: 0.875rem; transition: all 0.15s; }
+    .btn-primary { background: #f59e0b; color: #000; }
+    .btn-primary:hover { background: #d97706; }
+    .btn-outline { background: white; border: 1px solid #d1d5db; color: #374151; }
+    .btn-outline:hover { background: #f9fafb; }
+    .btn-sm { padding: 0.3rem 0.6rem; font-size: 0.8rem; border-radius: 0.25rem; cursor: pointer; border: 1px solid #d1d5db; background: white; color: #374151; font-weight: 500; }
+    .btn-sm:hover { background: #f9fafb; }
+    .btn-danger { padding: 0.3rem 0.6rem; font-size: 0.8rem; border-radius: 0.25rem; background: #fee2e2; color: #991b1b; border: 1px solid #fca5a5; cursor: pointer; font-weight: 500; }
+    .btn-danger:hover { background: #fecaca; }
+    .btn-text-sm { background: none; border: none; color: #6b7280; font-size: 0.8rem; cursor: pointer; text-decoration: underline; padding: 0; }
 
-    .btn {
-        padding: 0.5rem 1rem;
-        border-radius: 0.25rem;
-        cursor: pointer;
-        border: none;
-        text-decoration: none;
-        display: inline-block;
-    }
-    .btn-primary {
-        background: var(--primary-color);
-        color: white;
-    }
-    .btn-outline {
-        background: white;
-        border: 1px solid #ccc;
-    }
-    .btn-sm {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.8rem;
-    }
-    .muted {
-        color: #6b7280;
-    }
-    .actions {
-        display: flex;
-        gap: 0.75rem;
-    }
+    .modal { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 1rem; }
+    .modal-content { background: white; border-radius: 0.75rem; width: 600px; max-width: 100%; max-height: 90vh; display: flex; flex-direction: column; box-shadow: 0 25px 50px rgba(0,0,0,0.25); }
+    .modal-sm { width: 420px; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 1.25rem 1.5rem; border-bottom: 1px solid #e2e8f0; flex-shrink: 0; }
+    .modal-header h3 { margin: 0; font-size: 1.1rem; }
+    .modal-close { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #9ca3af; line-height: 1; padding: 0; }
+    .modal-close:hover { color: #374151; }
+    .modal-body { padding: 1.5rem; overflow-y: auto; flex: 1; }
+    .modal-footer { padding: 1rem 1.5rem; border-top: 1px solid #e2e8f0; display: flex; justify-content: flex-end; gap: 0.75rem; flex-shrink: 0; background: #f8fafc; }
+    .hidden { display: none !important; }
+
+    .form-group { margin-bottom: 1rem; }
+    .form-group label { display: block; margin-bottom: 0.4rem; font-weight: 600; font-size: 0.875rem; color: #374151; }
+    .form-group input, .form-group select, .form-group textarea { width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #d1d5db; border-radius: 0.375rem; font-size: 0.9rem; box-sizing: border-box; background: white; }
+    .form-group input:focus, .form-group select:focus, .form-group textarea:focus { outline: none; border-color: #f59e0b; box-shadow: 0 0 0 3px rgba(245,158,11,0.15); }
+    .form-row { display: flex; gap: 1rem; }
+    .form-row .form-group { flex: 1; }
+    .hint { font-size: 0.75rem; color: #9ca3af; font-weight: 400; margin-left: 0.5rem; }
+
+    .type-selector { display: flex; gap: 0.5rem; }
+    .type-btn { padding: 0.5rem 0.875rem; border: 2px solid #e2e8f0; border-radius: 0.5rem; background: white; cursor: pointer; font-size: 0.875rem; font-weight: 600; color: #6b7280; transition: all 0.15s; }
+    .type-btn:hover { border-color: #f59e0b; color: #374151; }
+    .type-btn.active { border-color: #f59e0b; background: #fffbeb; color: #92400e; }
+
+    .file-drop-zone { border: 2px dashed #d1d5db; border-radius: 0.5rem; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s; background: #f9fafb; }
+    .file-drop-zone:hover, .file-drop-zone.drag-over { border-color: #f59e0b; background: #fffbeb; }
+    .drop-icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    .file-drop-zone p { margin: 0.25rem 0; font-size: 0.875rem; color: #6b7280; }
+    .file-input-hidden { display: none; }
+    #file-selected { display: flex; align-items: center; gap: 0.75rem; justify-content: center; }
+    .file-icon { font-size: 1.5rem; }
+    .file-name { font-size: 0.875rem; font-weight: 500; color: #374151; }
+
+    .progress-bar { height: 6px; background: #e2e8f0; border-radius: 3px; overflow: hidden; margin-bottom: 0.4rem; margin-top: 0.75rem; }
+    #progress-fill { height: 100%; background: #f59e0b; transition: width 0.3s ease; border-radius: 3px; }
+
+    .toggle-label { display: flex; align-items: center; gap: 0.75rem; cursor: pointer; font-weight: 400; font-size: 0.875rem; }
+    .toggle-label input[type="checkbox"] { display: none; }
+    .toggle-switch { width: 44px; height: 24px; background: #d1d5db; border-radius: 12px; position: relative; transition: background 0.2s; flex-shrink: 0; }
+    .toggle-switch::after { content: ""; width: 20px; height: 20px; background: white; border-radius: 50%; position: absolute; top: 2px; left: 2px; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.15); }
+    .toggle-label input:checked + .toggle-switch { background: #f59e0b; }
+    .toggle-label input:checked + .toggle-switch::after { transform: translateX(20px); }
 </style>
