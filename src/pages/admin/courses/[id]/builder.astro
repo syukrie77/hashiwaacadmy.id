@@ -777,7 +777,12 @@ if (!user || user.role !== "admin") {
                     method: "POST",
                     body: uploadForm,
                 });
-                const uploadResult = await uploadRes.json();
+                let uploadResult: any = {};
+                try {
+                    uploadResult = await uploadRes.json();
+                } catch {
+                    throw new Error(`Upload gagal (status ${uploadRes.status}): server tidak mengembalikan respons yang valid`);
+                }
                 if (!uploadRes.ok) throw new Error(uploadResult.error || "Upload gagal");
 
                 content = uploadResult.publicUrl;
