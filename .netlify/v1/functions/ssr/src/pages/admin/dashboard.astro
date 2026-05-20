@@ -1,0 +1,169 @@
+---
+import AdminLayout from "../../components/AdminLayout.astro";
+import { supabase } from "../../lib/supabase";
+
+const user = Astro.locals.user;
+if (!user || user.role !== "admin") {
+    return Astro.redirect("/login");
+}
+
+// Server-side data fetching (using basic client - RLS disabled)
+
+const [
+    { count: userCount },
+    { count: classCount },
+    { count: enrollCount },
+    { data: payments },
+] = await Promise.all([
+    supabase.from("users").select("*", { count: "exact", head: true }),
+    supabase.from("classes").select("*", { count: "exact", head: true }),
+    supabase.from("enrollments").select("*", { count: "exact", head: true }),
+    supabase.from("payments").select("amount").eq("status", "completed"),
+]);
+
+const revenue =
+    (payments as { amount: number }[] | null)?.reduce(
+        (sum, p) => sum + (p.amount || 0),
+        0,
+    ) || 0;
+---
+
+<AdminLayout activePage="overview" title="Platform Overview">
+    <div class="admin-header">
+        <h1>Platform Overview</h1>
+        <div class="user-info">Login sebagai: {user.name}</div>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <span class="label">Total Users</span>
+            <span class="value">{userCount ?? 0}</span>
+        </div>
+        <div class="stat-card">
+            <span class="label">Total Courses</span>
+            <span class="value">{classCount ?? 0}</span>
+        </div>
+        <div class="stat-card">
+            <span class="label">Total Enrollments</span>
+            <span class="value">{enrollCount ?? 0}</span>
+        </div>
+        <div class="stat-card">
+            <span class="label">Total Revenue</span>
+            <span class="value">Rp {revenue.toLocaleString("id-ID")}</span>
+        </div>
+    </div>
+
+    <div class="quick-actions">
+        <h2>Quick Actions</h2>
+        <div class="action-buttons">
+            <a href="/admin/courses/new" class="action-btn">
+                <span class="icon">➕</span>
+                <div class="text">
+                    <strong>Buat Course Baru</strong>
+                    <p>Mulai membangun jalur pembelajaran baru</p>
+                </div>
+            </a>
+            <a href="/admin/users" class="action-btn">
+                <span class="icon">👥</span>
+                <div class="text">
+                    <strong>Kelola Users</strong>
+                    <p>Lihat dan kelola akun student/instructor</p>
+                </div>
+            </a>
+        </div>
+    </div>
+
+    <div class="recent-actions">
+        <h2>System Status</h2>
+        <p>Semua layanan beroperasi normal. ✅</p>
+    </div>
+</AdminLayout>
+
+<style>
+    .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 3rem;
+    }
+
+    .user-info {
+        font-size: 0.9rem;
+        color: #64748b;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 2rem;
+        margin-bottom: 3rem;
+    }
+
+    .stat-card {
+        background: white;
+        padding: 2rem;
+        border-radius: 0.75rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        border: 1px solid var(--border-color);
+    }
+
+    .stat-card .label {
+        display: block;
+        color: #64748b;
+        font-size: 0.875rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .stat-card .value {
+        font-size: 2rem;
+        font-weight: 700;
+        color: var(--primary-color);
+    }
+
+    /* Quick Actions */
+    .quick-actions {
+        margin-bottom: 3rem;
+    }
+    .action-buttons {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 1.5rem;
+        margin-top: 1rem;
+    }
+    .action-btn {
+        display: flex;
+        align-items: center;
+        gap: 1.25rem;
+        background: white;
+        padding: 1.5rem;
+        border-radius: 0.75rem;
+        border: 1px solid var(--border-color);
+        text-decoration: none;
+        color: inherit;
+        transition: all 0.2s;
+    }
+    .action-btn:hover {
+        border-color: var(--primary-color);
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        transform: translateY(-2px);
+    }
+    .action-btn .icon {
+        font-size: 1.5rem;
+        background: #f1f5f9;
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 0.5rem;
+    }
+    .action-btn .text strong {
+        display: block;
+        margin-bottom: 0.25rem;
+    }
+    .action-btn .text p {
+        margin: 0;
+        font-size: 0.85rem;
+        color: #64748b;
+    }
+</style>

@@ -1,0 +1,269 @@
+---
+import Layout from "../../layouts/Layout.astro";
+import { getSupabaseServerClient } from "../../lib/supabase";
+
+const paymentId = Astro.url.searchParams.get("id");
+
+let payment: any = null;
+let course: any = null;
+let errorMsg = "";
+
+if (!paymentId) {
+    errorMsg = "ID pembayaran tidak valid.";
+} else {
+    const supabase = getSupabaseServerClient(Astro);
+    const { data, error } = await supabase
+        .from("payments")
+        .select("*, classes(id, title)")
+        .eq("id", paymentId)
+        .single();
+
+    if (error || !data) {
+        errorMsg = "Data pembayaran tidak ditemukan.";
+    } else {
+        payment = data;
+        course = (data as any).classes;
+    }
+}
+
+const isPaid = payment?.status === "completed";
+const isPending = payment?.status === "pending";
+---
+
+<Layout>
+    <div class="payment-result-container">
+        {errorMsg ? (
+            <div class="result-card error">
+                <div class="icon">❌</div>
+                <h2>Terjadi Kesalahan</h2>
+                <p>{errorMsg}</p>
+                <a href="/" class="btn btn-primary">Kembali ke Beranda</a>
+            </div>
+        ) : isPaid ? (
+            <div class="result-card success">
+                <div class="icon">✅</div>
+                <h2>Pembayaran Berhasil!</h2>
+                <p>Terima kasih. Akses Anda telah diaktifkan.</p>
+                {course && (
+                    <div class="payment-detail">
+                        <div class="detail-row">
+                            <span>Kursus</span>
+                            <strong>{course.title}</strong>
+                        </div>
+                        <div class="detail-row">
+                            <span>Total Dibayar</span>
+                            <strong>Rp {payment.amount.toLocaleString("id-ID")}</strong>
+                        </div>
+                        <div class="detail-row">
+                            <span>Status</span>
+                            <span class="badge-success">Lunas</span>
+                        </div>
+                    </div>
+                )}
+                <a href={course ? `/courses/${course.id}` : "/dashboard"} class="btn btn-primary">
+                    Mulai Belajar →
+                </a>
+            </div>
+        ) : isPending ? (
+            <div class="result-card pending">
+                <div class="icon">⏳</div>
+                <h2>Pembayaran Sedang Diproses</h2>
+                <p>
+                    Pembayaran Anda sedang diverifikasi. Halaman ini akan otomatis
+                    diperbarui. Jika tidak berubah dalam beberapa menit, coba
+                    refresh halaman.
+                </p>
+                {course && (
+                    <div class="payment-detail">
+                        <div class="detail-row">
+                            <span>Kursus</span>
+                            <strong>{course.title}</strong>
+                        </div>
+                        <div class="detail-row">
+                            <span>Total</span>
+                            <strong>Rp {payment.amount.toLocaleString("id-ID")}</strong>
+                        </div>
+                        <div class="detail-row">
+                            <span>Status</span>
+                            <span class="badge-pending">Menunggu Konfirmasi</span>
+                        </div>
+                    </div>
+                )}
+                <div class="pending-actions">
+                    <button id="refresh-btn" class="btn btn-primary">🔄 Cek Status</button>
+                    <a href="/dashboard" class="btn btn-outline">Kembali ke Dashboard</a>
+                </div>
+            </div>
+        ) : (
+            <div class="result-card error">
+                <div class="icon">❌</div>
+                <h2>Pembayaran Gagal atau Kedaluwarsa</h2>
+                <p>Transaksi ini tidak dapat diproses. Silakan coba lagi.</p>
+                {course && (
+                    <a href={`/courses/${course.id}`} class="btn btn-primary">
+                        Coba Lagi
+                    </a>
+                )}
+                <a href="/dashboard" class="btn btn-outline">Kembali ke Dashboard</a>
+            </div>
+        )}
+    </div>
+</Layout>
+
+<script>
+    // Auto-polling untuk status pending
+    const paymentId = new URLSearchParams(window.location.search).get("id");
+    const card = document.querySelector(".result-card.pending");
+    const refreshBtn = document.getElementById("refresh-btn") as HTMLButtonElement;
+
+    async function checkStatus() {
+        if (!paymentId) return;
+        try {
+            const res = await fetch(`/api/payments/status?id=${paymentId}`);
+            if (!res.ok) return;
+            const data = await res.json();
+            if (data.status === "completed") {
+                window.location.reload();
+            }
+        } catch {}
+    }
+
+    if (card) {
+        // Cek setiap 5 detik selama maks 5 menit
+        let checks = 0;
+        const interval = setInterval(() => {
+            checks++;
+            if (checks > 60) clearInterval(interval);
+            else checkStatus();
+        }, 5000);
+
+        refreshBtn?.addEventListener("click", () => {
+            refreshBtn.textContent = "Mengecek...";
+            refreshBtn.disabled = true;
+            checkStatus().then(() => {
+                setTimeout(() => {
+                    refreshBtn.textContent = "🔄 Cek Status";
+                    refreshBtn.disabled = false;
+                }, 2000);
+            });
+        });
+    }
+</script>
+
+<style>
+    .payment-result-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 70vh;
+        padding: 2rem;
+    }
+
+    .result-card {
+        background: white;
+        border-radius: 1rem;
+        padding: 3rem 2.5rem;
+        text-align: center;
+        max-width: 480px;
+        width: 100%;
+        box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+        border: 1px solid var(--border-color);
+    }
+
+    .icon {
+        font-size: 4rem;
+        margin-bottom: 1rem;
+        display: block;
+    }
+
+    .result-card h2 {
+        margin: 0 0 0.75rem 0;
+        font-size: 1.5rem;
+    }
+
+    .result-card p {
+        color: #6b7280;
+        margin-bottom: 2rem;
+        line-height: 1.6;
+    }
+
+    .payment-detail {
+        background: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 0.5rem;
+        padding: 1rem 1.25rem;
+        margin-bottom: 2rem;
+        text-align: left;
+    }
+
+    .detail-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 0;
+        border-bottom: 1px solid #f3f4f6;
+        font-size: 0.9rem;
+    }
+
+    .detail-row:last-child {
+        border-bottom: none;
+    }
+
+    .detail-row span:first-child {
+        color: #6b7280;
+    }
+
+    .badge-success {
+        background: #dcfce7;
+        color: #166534;
+        padding: 0.2rem 0.6rem;
+        border-radius: 99px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .badge-pending {
+        background: #fef3c7;
+        color: #92400e;
+        padding: 0.2rem 0.6rem;
+        border-radius: 99px;
+        font-size: 0.8rem;
+        font-weight: 600;
+    }
+
+    .pending-actions {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .btn {
+        display: inline-block;
+        padding: 0.75rem 1.5rem;
+        border-radius: 0.5rem;
+        font-weight: 600;
+        text-decoration: none;
+        border: none;
+        cursor: pointer;
+        font-size: 0.95rem;
+        transition: opacity 0.15s;
+    }
+
+    .btn:hover { opacity: 0.85; }
+
+    .btn-primary {
+        background: var(--primary-color);
+        color: white;
+    }
+
+    .btn-outline {
+        background: transparent;
+        color: var(--text-color);
+        border: 1px solid var(--border-color);
+    }
+
+    .result-card.success { border-top: 4px solid #10b981; }
+    .result-card.pending { border-top: 4px solid #f59e0b; }
+    .result-card.error   { border-top: 4px solid #ef4444; }
+</style>

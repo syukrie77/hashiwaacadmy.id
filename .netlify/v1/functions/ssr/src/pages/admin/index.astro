@@ -1,0 +1,18 @@
+---
+// Redirect /admin to /admin/dashboard
+return Astro.redirect("/admin/dashboard");
+---
+
+<!doctype html>
+<html>
+    <head>
+        <meta http-equiv="refresh" content="0; url=/admin/dashboard" />
+        <title>Redirecting...</title>
+    </head>
+    <body>
+        <p>Redirecting to <a href="/admin/dashboard">Admin Dashboard</a>...</p>
+        <script>
+            window.location.href = "/admin/dashboard";
+        </script>
+    </body>
+</html>

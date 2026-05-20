@@ -1,0 +1,178 @@
+---
+import Layout from "../layouts/Layout.astro";
+---
+
+<Layout>
+    <div class="auth-container">
+        <div class="auth-card">
+            <h2>Create Account</h2>
+            <p class="subtitle">Join Hashiwa E-Learning today</p>
+
+            <form class="auth-form" id="register-form">
+                <div class="form-group">
+                    <label for="name">Full Name</label>
+                    <input
+                        type="text"
+                        id="name"
+                        name="name"
+                        required
+                        placeholder="John Doe"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="email">Email Address</label>
+                    <input
+                        type="email"
+                        id="email"
+                        name="email"
+                        required
+                        placeholder="you@example.com"
+                    />
+                </div>
+
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input
+                        type="password"
+                        id="password"
+                        name="password"
+                        required
+                        placeholder="Create a password"
+                    />
+                </div>
+
+                <button type="submit" class="btn btn-primary btn-block"
+                    >Sign Up</button
+                >
+            </form>
+
+            <p class="footer-text">
+                Already have an account? <a href="/login">Sign In</a>
+            </p>
+        </div>
+    </div>
+</Layout>
+
+<script>
+    const form = document.getElementById("register-form");
+
+    form?.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const formData = new FormData(e.target as HTMLFormElement);
+
+        const submitBtn = form.querySelector(
+            'button[type="submit"]',
+        ) as HTMLButtonElement;
+        const orgText = submitBtn.textContent;
+        if (submitBtn) {
+            submitBtn.textContent = "Loading...";
+            submitBtn.disabled = true;
+        }
+
+        try {
+            const res = await fetch("/api/auth/register", {
+                method: "POST",
+                body: formData,
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                alert(data.error || "Gagal mendaftar");
+                return;
+            }
+
+            alert("Akun berhasil dibuat! Silakan login dengan akun baru Anda.");
+            window.location.href = "/login";
+        } catch (err) {
+            console.error(err);
+            alert("Terjadi kesalahan sistem saat menghubungi server");
+        } finally {
+            if (submitBtn) {
+                submitBtn.textContent = orgText;
+                submitBtn.disabled = false;
+            }
+        }
+    });
+</script>
+
+<style>
+    .auth-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 80vh;
+    }
+
+    .auth-card {
+        background: white;
+        padding: 2.5rem;
+        border-radius: 1rem;
+        box-shadow:
+            0 4px 6px -1px rgba(0, 0, 0, 0.1),
+            0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        width: 100%;
+        max-width: 400px;
+        border: 1px solid var(--border-color);
+    }
+
+    h2 {
+        text-align: center;
+        margin-bottom: 0.5rem;
+        color: var(--text-color);
+    }
+
+    .subtitle {
+        text-align: center;
+        color: #6b7280;
+        margin-bottom: 2rem;
+    }
+
+    .form-group {
+        margin-bottom: 1.5rem;
+    }
+
+    label {
+        display: block;
+        margin-bottom: 0.5rem;
+        font-weight: 500;
+        font-size: 0.875rem;
+    }
+
+    input {
+        width: 100%;
+        padding: 0.75rem;
+        border: 1px solid #d1d5db;
+        border-radius: 0.375rem;
+        font-size: 1rem;
+        box-sizing: border-box;
+        background-color: white;
+    }
+
+    input:focus {
+        outline: none;
+        border-color: var(--primary-color);
+        box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.15);
+    }
+
+    .btn-block {
+        width: 100%;
+        padding: 0.75rem;
+        font-size: 1rem;
+        margin-top: 1rem;
+        cursor: pointer;
+    }
+
+    .footer-text {
+        text-align: center;
+        margin-top: 1.5rem;
+        font-size: 0.875rem;
+        color: #6b7280;
+    }
+
+    .footer-text a {
+        color: var(--primary-color);
+        text-decoration: none;
+        font-weight: 500;
+    }
+</style>
